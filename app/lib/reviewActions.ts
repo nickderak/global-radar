@@ -69,7 +69,9 @@ export async function mergeIntoEvent(reportId: string, eventId: string) {
   const existingSources = safeArray(event.sourcesJson);
   const existingTimeline = safeArray(event.timelineJson);
 
-  const updatedSources = Array.from(new Set([...existingSources, report.source]));
+  const updatedSources = Array.from(
+    new Set([...existingSources, report.source])
+  );
 
   const updatedTimeline = [
     ...existingTimeline,
