@@ -40,7 +40,7 @@ export default async function ReviewActionPage({
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 border-b border-gray-800 pb-6">
           <p className="mb-2 text-sm uppercase tracking-[0.2em] text-gray-400">
-            Global Squawk Box
+            GLOBAL RADAR
           </p>
           <h1 className="text-4xl font-bold">Review Action</h1>
           <p className="mt-3 text-gray-300">
