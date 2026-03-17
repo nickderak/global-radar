@@ -51,31 +51,57 @@ export default async function AdminCleanupPage() {
     take: 20,
   });
 
-  const recentEvents: CleanupEvent[] = recentEventsRaw.map((event) => ({
-    id: event.id,
-    slug: event.slug,
-    title: event.title,
-    description: event.description,
-    eventTime: event.eventTime,
-    region: event.region,
-    category: event.category,
-    status: event.status,
-    sourceCount: event.sourceCount,
-    importanceLabel: event.importanceLabel,
-    sourcesJson: event.sourcesJson,
-  }));
+  const recentEvents: CleanupEvent[] = recentEventsRaw.map(
+    (event: {
+      id: string;
+      slug: string;
+      title: string;
+      description: string;
+      eventTime: Date;
+      region: string;
+      category: string;
+      status: string;
+      sourceCount: number;
+      importanceLabel: string;
+      sourcesJson: unknown;
+    }) => ({
+      id: event.id,
+      slug: event.slug,
+      title: event.title,
+      description: event.description,
+      eventTime: event.eventTime,
+      region: event.region,
+      category: event.category,
+      status: event.status,
+      sourceCount: event.sourceCount,
+      importanceLabel: event.importanceLabel,
+      sourcesJson: event.sourcesJson,
+    })
+  );
 
-  const recentRuns: CleanupRun[] = recentRunsRaw.map((run) => ({
-    id: run.id,
-    runType: run.runType,
-    generatedCount: run.generatedCount,
-    insertedCount: run.insertedCount,
-    createdCount: run.createdCount,
-    mergedCount: run.mergedCount,
-    reviewCount: run.reviewCount,
-    errorCount: run.errorCount,
-    createdAt: run.createdAt,
-  }));
+  const recentRuns: CleanupRun[] = recentRunsRaw.map(
+    (run: {
+      id: string;
+      runType: string;
+      generatedCount: number;
+      insertedCount: number;
+      createdCount: number;
+      mergedCount: number;
+      reviewCount: number;
+      errorCount: number;
+      createdAt: Date;
+    }) => ({
+      id: run.id,
+      runType: run.runType,
+      generatedCount: run.generatedCount,
+      insertedCount: run.insertedCount,
+      createdCount: run.createdCount,
+      mergedCount: run.mergedCount,
+      reviewCount: run.reviewCount,
+      errorCount: run.errorCount,
+      createdAt: run.createdAt,
+    })
+  );
 
   return (
     <main className="min-h-screen bg-black px-8 py-10 text-white">
