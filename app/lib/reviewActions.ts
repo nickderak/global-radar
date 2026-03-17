@@ -69,9 +69,7 @@ export async function mergeIntoEvent(reportId: string, eventId: string) {
   const existingSources = safeArray(event.sourcesJson);
   const existingTimeline = safeArray(event.timelineJson);
 
-  const updatedSources = Array.from(
-    new Set([...existingSources, report.source])
-  );
+  const updatedSources = Array.from(new Set([...existingSources, report.source]));
 
   const updatedTimeline = [
     ...existingTimeline,
@@ -92,4 +90,8 @@ export async function mergeIntoEvent(reportId: string, eventId: string) {
     eventId: updatedEvent.id,
     slug: updatedEvent.slug,
   };
+}
+
+export async function approveMerge(reportId: string, eventId: string) {
+  return mergeIntoEvent(reportId, eventId);
 }
