@@ -2,20 +2,86 @@ import Link from "next/link";
 import { prisma } from "../../lib/prisma";
 import AutoRefresh from "../../components/AutoRefresh";
 
+type IngestRunItem = {
+  id: string;
+  runType: string;
+  generatedCount: number;
+  insertedCount: number;
+  createdCount: number;
+  mergedCount: number;
+  reviewCount: number;
+  errorCount: number;
+  createdAt: Date;
+};
+
+type HottestEventItem = {
+  id: string;
+  title: string;
+  region: string;
+  category: string;
+  status: string;
+  sourceCount: number;
+  importanceScore: number;
+};
+
 export default async function IngestDebugPage() {
-  const recentRuns = await prisma.ingestionRun.findMany({
+  const recentRunsRaw = await prisma.ingestionRun.findMany({
     orderBy: {
       createdAt: "desc",
     },
     take: 8,
   });
 
-  const hottestEvents = await prisma.event.findMany({
+  const hottestEventsRaw = await prisma.event.findMany({
     orderBy: {
       importanceScore: "desc",
     },
     take: 5,
   });
+
+  const recentRuns: IngestRunItem[] = recentRunsRaw.map(
+    (run: {
+      id: string;
+      runType: string;
+      generatedCount: number;
+      insertedCount: number;
+      createdCount: number;
+      mergedCount: number;
+      reviewCount: number;
+      errorCount: number;
+      createdAt: Date;
+    }) => ({
+      id: run.id,
+      runType: run.runType,
+      generatedCount: run.generatedCount,
+      insertedCount: run.insertedCount,
+      createdCount: run.createdCount,
+      mergedCount: run.mergedCount,
+      reviewCount: run.reviewCount,
+      errorCount: run.errorCount,
+      createdAt: run.createdAt,
+    })
+  );
+
+  const hottestEvents: HottestEventItem[] = hottestEventsRaw.map(
+    (event: {
+      id: string;
+      title: string;
+      region: string;
+      category: string;
+      status: string;
+      sourceCount: number;
+      importanceScore: number;
+    }) => ({
+      id: event.id,
+      title: event.title,
+      region: event.region,
+      category: event.category,
+      status: event.status,
+      sourceCount: event.sourceCount,
+      importanceScore: event.importanceScore,
+    })
+  );
 
   return (
     <main className="min-h-screen bg-black px-8 py-10 text-white">
@@ -24,7 +90,7 @@ export default async function IngestDebugPage() {
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 border-b border-gray-800 pb-6">
           <p className="mb-2 text-sm uppercase tracking-[0.2em] text-gray-400">
-            Global Radar
+            GLOBAL RADAR
           </p>
           <h1 className="text-4xl font-bold">Live Ingestion Status</h1>
           <p className="mt-3 text-gray-300">
@@ -70,7 +136,6 @@ export default async function IngestDebugPage() {
             </div>
             <p className="mt-4 text-sm text-gray-400">
               Runs all registered external source adapters through one framework.
-              This now includes the mock source and the real USGS earthquake feed.
             </p>
             <div className="mt-6">
               <Link
@@ -91,7 +156,7 @@ export default async function IngestDebugPage() {
               <p className="mt-4 text-gray-400">No ingestion runs logged yet.</p>
             ) : (
               <div className="mt-6 space-y-4">
-                {recentRuns.map((run) => (
+                {recentRuns.map((run: IngestRunItem) => (
                   <div
                     key={run.id}
                     className="rounded border border-gray-800 bg-black p-4"
@@ -154,7 +219,7 @@ export default async function IngestDebugPage() {
               <p className="mt-4 text-gray-400">No events available yet.</p>
             ) : (
               <div className="mt-6 space-y-4">
-                {hottestEvents.map((event) => (
+                {hottestEvents.map((event: HottestEventItem) => (
                   <div
                     key={event.id}
                     className="rounded border border-gray-800 bg-black p-4"
