@@ -5,25 +5,77 @@ import {
   deleteIngestionRunAction,
 } from "../../lib/adminCleanupActions";
 
+type CleanupEvent = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  eventTime: Date;
+  region: string;
+  category: string;
+  status: string;
+  sourceCount: number;
+  importanceLabel: string;
+  sourcesJson: unknown;
+};
+
+type CleanupRun = {
+  id: string;
+  runType: string;
+  generatedCount: number;
+  insertedCount: number;
+  createdCount: number;
+  mergedCount: number;
+  reviewCount: number;
+  errorCount: number;
+  createdAt: Date;
+};
+
 function safeSources(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item));
 }
 
 export default async function AdminCleanupPage() {
-  const recentEvents = await prisma.event.findMany({
+  const recentEventsRaw = await prisma.event.findMany({
     orderBy: {
       eventTime: "desc",
     },
     take: 20,
   });
 
-  const recentRuns = await prisma.ingestionRun.findMany({
+  const recentRunsRaw = await prisma.ingestionRun.findMany({
     orderBy: {
       createdAt: "desc",
     },
     take: 20,
   });
+
+  const recentEvents: CleanupEvent[] = recentEventsRaw.map((event) => ({
+    id: event.id,
+    slug: event.slug,
+    title: event.title,
+    description: event.description,
+    eventTime: event.eventTime,
+    region: event.region,
+    category: event.category,
+    status: event.status,
+    sourceCount: event.sourceCount,
+    importanceLabel: event.importanceLabel,
+    sourcesJson: event.sourcesJson,
+  }));
+
+  const recentRuns: CleanupRun[] = recentRunsRaw.map((run) => ({
+    id: run.id,
+    runType: run.runType,
+    generatedCount: run.generatedCount,
+    insertedCount: run.insertedCount,
+    createdCount: run.createdCount,
+    mergedCount: run.mergedCount,
+    reviewCount: run.reviewCount,
+    errorCount: run.errorCount,
+    createdAt: run.createdAt,
+  }));
 
   return (
     <main className="min-h-screen bg-black px-8 py-10 text-white">
@@ -70,7 +122,7 @@ export default async function AdminCleanupPage() {
               <p className="mt-4 text-gray-400">No events found.</p>
             ) : (
               <div className="mt-6 space-y-4">
-                {recentEvents.map((event) => {
+                {recentEvents.map((event: CleanupEvent) => {
                   const sources = safeSources(event.sourcesJson);
 
                   return (
@@ -159,7 +211,7 @@ export default async function AdminCleanupPage() {
               <p className="mt-4 text-gray-400">No ingestion runs found.</p>
             ) : (
               <div className="mt-6 space-y-4">
-                {recentRuns.map((run) => (
+                {recentRuns.map((run: CleanupRun) => (
                   <div
                     key={run.id}
                     className="rounded border border-gray-800 bg-black p-4"
