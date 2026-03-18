@@ -16,7 +16,7 @@ async function main() {
       slug: "test-event-001",
       title: "Database Connection Test Event",
       description:
-        "This event confirms the Global Squawk Box database is connected.",
+        "This event confirms the Global Radar database is connected.",
       eventTime: new Date(),
       category: "System",
       region: "Global",
