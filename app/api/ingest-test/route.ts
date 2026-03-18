@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { ingestSignals } from "../../lib/ingestSignals";
 import { logIngestionRun } from "../../lib/logIngestionRun";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const testSignals = [
     {
