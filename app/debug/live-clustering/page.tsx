@@ -1,108 +1,49 @@
 import Link from "next/link";
-import { compareLiveReportsToEvents } from "../../lib/liveClustering";
 
-function getDecisionClass(decision: string) {
-  switch (decision) {
-    case "Merge":
-      return "border-green-700 bg-green-950 text-green-300";
-    case "Review":
-      return "border-yellow-700 bg-yellow-950 text-yellow-300";
-    case "New Event":
-      return "border-blue-700 bg-blue-950 text-blue-300";
-    default:
-      return "border-gray-700 bg-gray-950 text-gray-300";
-  }
-}
-
-export default async function LiveClusteringPage() {
-  const results = await compareLiveReportsToEvents();
-
+export default function LiveClusteringDebugPage() {
   return (
     <main className="min-h-screen bg-black px-8 py-10 text-white">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 border-b border-gray-800 pb-6">
           <p className="mb-2 text-sm uppercase tracking-[0.2em] text-gray-400">
-            Global Squawk Box
+            GLOBAL RADAR
           </p>
-          <h1 className="text-4xl font-bold">Live Clustering Debug View</h1>
+          <h1 className="text-4xl font-bold">Live Clustering Debug</h1>
           <p className="mt-3 text-gray-300">
-            Compare live IncomingReports against live Events from the database.
+            This debug page is temporarily simplified to unblock production deployment.
           </p>
         </header>
 
-        {results.length === 0 ? (
-          <p className="text-gray-400">No IncomingReports found.</p>
-        ) : (
-          <div className="space-y-4">
-            {results.map((result) => (
-              <div
-                key={result.reportId}
-                className="rounded-lg border border-gray-800 bg-gray-950 p-5"
-              >
-                <h2 className="text-xl font-semibold text-white">
-                  Incoming Report
-                </h2>
-                <p className="mt-2 text-gray-300">{result.reportTitle}</p>
+        <div className="rounded-lg border border-gray-800 bg-gray-950 p-6">
+          <p className="text-gray-300">
+            Live clustering diagnostics are temporarily disabled in production
+            while deployment issues are being resolved.
+          </p>
 
-                <div className="mt-4 border-t border-gray-800 pt-4">
-                  <h3 className="text-lg font-semibold text-white">
-                    Best Match
-                  </h3>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/debug/ingest"
+              className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:border-gray-500"
+            >
+              Open Ingestion Debug
+            </Link>
 
-                  {result.bestMatch ? (
-                    <>
-                      <p className="mt-2 text-gray-300">
-                        {result.bestMatch.eventTitle}
-                      </p>
+            <Link
+              href="/events"
+              className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:border-gray-500"
+            >
+              View Events
+            </Link>
 
-                      <p className="mt-2 text-sm text-gray-400">
-                        Score: {result.bestMatch.score}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap gap-3">
-                        <span
-                          className={`rounded border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${getDecisionClass(
-                            result.decision
-                          )}`}
-                        >
-                          {result.decision}
-                        </span>
-
-                        <Link
-                          href={`/events/${result.bestMatch.eventSlug}`}
-                          className="rounded border border-gray-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-300 hover:border-gray-500"
-                        >
-                          Open Event
-                        </Link>
-                      </div>
-
-                      <div className="mt-4">
-                        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
-                          Match Reasoning
-                        </h4>
-
-                        <ul className="mt-2 space-y-2 text-sm text-gray-300">
-                          {result.bestMatch.reasons.map((reason, index) => (
-                            <li
-                              key={index}
-                              className="rounded border border-gray-800 bg-black p-3"
-                            >
-                              {reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="mt-2 text-gray-400">No events found.</p>
-                  )}
-                </div>
-              </div>
-            ))}
+            <Link
+              href="/radar"
+              className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:border-gray-500"
+            >
+              Open Radar
+            </Link>
           </div>
-        )}
+        </div>
       </div>
     </main>
   );
 }
-
