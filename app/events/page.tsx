@@ -2,6 +2,21 @@ import Link from "next/link";
 import { prisma } from "../lib/prisma";
 import AutoRefresh from "../components/AutoRefresh";
 
+type EventFeedItem = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  eventTime: Date;
+  region: string;
+  category: string;
+  confidenceLabel: string;
+  importanceLabel: string;
+  status: string;
+  sourceCount: number;
+  sourcesJson: unknown;
+};
+
 function getConfidenceBadgeClass(value: string) {
   const normalized = value.toLowerCase();
 
@@ -66,29 +81,67 @@ export default async function EventsPage({
   const selectedImportance = filters.importance ?? "";
   const selectedStatus = filters.status ?? "";
 
-  const allEvents = await prisma.event.findMany({
+  const allEventsRaw = await prisma.event.findMany({
     orderBy: {
       eventTime: "desc",
     },
   });
 
-  const regionOptions = uniqueSorted(allEvents.map((event) => event.region));
-  const categoryOptions = uniqueSorted(allEvents.map((event) => event.category));
+  const allEvents: EventFeedItem[] = allEventsRaw.map(
+    (event: {
+      id: string;
+      slug: string;
+      title: string;
+      description: string;
+      eventTime: Date;
+      region: string;
+      category: string;
+      confidenceLabel: string;
+      importanceLabel: string;
+      status: string;
+      sourceCount: number;
+      sourcesJson: unknown;
+    }) => ({
+      id: event.id,
+      slug: event.slug,
+      title: event.title,
+      description: event.description,
+      eventTime: event.eventTime,
+      region: event.region,
+      category: event.category,
+      confidenceLabel: event.confidenceLabel,
+      importanceLabel: event.importanceLabel,
+      status: event.status,
+      sourceCount: event.sourceCount,
+      sourcesJson: event.sourcesJson,
+    })
+  );
+
+  const regionOptions = uniqueSorted(
+    allEvents.map((event: EventFeedItem) => event.region)
+  );
+  const categoryOptions = uniqueSorted(
+    allEvents.map((event: EventFeedItem) => event.category)
+  );
   const confidenceOptions = uniqueSorted(
-    allEvents.map((event) => event.confidenceLabel)
+    allEvents.map((event: EventFeedItem) => event.confidenceLabel)
   );
   const importanceOptions = uniqueSorted(
-    allEvents.map((event) => event.importanceLabel)
+    allEvents.map((event: EventFeedItem) => event.importanceLabel)
   );
-  const statusOptions = uniqueSorted(allEvents.map((event) => event.status));
+  const statusOptions = uniqueSorted(
+    allEvents.map((event: EventFeedItem) => event.status)
+  );
 
-  const events = allEvents.filter((event) => {
+  const events = allEvents.filter((event: EventFeedItem) => {
     if (selectedRegion && event.region !== selectedRegion) return false;
     if (selectedCategory && event.category !== selectedCategory) return false;
-    if (selectedConfidence && event.confidenceLabel !== selectedConfidence)
+    if (selectedConfidence && event.confidenceLabel !== selectedConfidence) {
       return false;
-    if (selectedImportance && event.importanceLabel !== selectedImportance)
+    }
+    if (selectedImportance && event.importanceLabel !== selectedImportance) {
       return false;
+    }
     if (selectedStatus && event.status !== selectedStatus) return false;
 
     return true;
@@ -101,7 +154,7 @@ export default async function EventsPage({
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 border-b border-gray-800 pb-6">
           <p className="mb-2 text-sm uppercase tracking-[0.2em] text-gray-400">
-            Global Radar
+            GLOBAL RADAR
           </p>
           <h1 className="text-4xl font-bold">Event Feed</h1>
           <p className="mt-3 text-gray-300">
@@ -254,7 +307,7 @@ export default async function EventsPage({
           </div>
         ) : (
           <div className="space-y-4">
-            {events.map((event) => {
+            {events.map((event: EventFeedItem) => {
               const sources = safeSources(event.sourcesJson);
 
               return (
