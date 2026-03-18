@@ -98,7 +98,7 @@ export default async function IngestDebugPage() {
           </p>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-3)">
           <div className="rounded-lg border border-gray-800 bg-gray-950 p-6">
             <h2 className="text-xl font-semibold">Manual Test Ingestion</h2>
             <div className="mt-4 rounded border border-gray-800 bg-black p-4 text-sm text-green-300">
