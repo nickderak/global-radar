@@ -5,6 +5,7 @@ import L from "leaflet";
 import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
 import type { LatLngExpression } from "leaflet";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })
   ._getIconUrl;
@@ -46,6 +47,7 @@ function getMarkerOpacity(score: number) {
 }
 
 export default function RadarMapInner({ events }: { events: RadarEvent[] }) {
+  const router = useRouter();
   const mapCenter: LatLngExpression = [20, 0];
 
   return (
@@ -69,6 +71,11 @@ export default function RadarMapInner({ events }: { events: RadarEvent[] }) {
               color: "#ef4444",
               fillColor: "#ef4444",
               fillOpacity: getMarkerOpacity(event.importanceScore),
+            }}
+            eventHandlers={{
+              click: () => {
+                router.push(`/events/${event.slug}`);
+              },
             }}
           >
             <Popup>
