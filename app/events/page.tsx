@@ -157,6 +157,10 @@ export default async function EventsPage({
       event.importanceLabel.toLowerCase().includes("high")
   );
 
+  const activeEvents = events.filter((event) =>
+    event.status.toLowerCase().includes("active")
+  );
+
   return (
     <main className="min-h-screen bg-black px-8 py-10 text-white">
       <AutoRefresh intervalMs={5000} />
@@ -172,6 +176,27 @@ export default async function EventsPage({
             support.
           </p>
         </header>
+
+        <section className="mb-8 grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border border-gray-800 bg-gray-950 p-5">
+            <p className="text-sm text-gray-500">Total Visible Events</p>
+            <p className="mt-2 text-3xl font-bold text-white">{events.length}</p>
+          </div>
+
+          <div className="rounded-lg border border-red-800 bg-red-950/10 p-5">
+            <p className="text-sm text-gray-500">Top Priority Events</p>
+            <p className="mt-2 text-3xl font-bold text-red-300">
+              {topPriorityEvents.length}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-blue-800 bg-blue-950/10 p-5">
+            <p className="text-sm text-gray-500">Active Events</p>
+            <p className="mt-2 text-3xl font-bold text-blue-300">
+              {activeEvents.length}
+            </p>
+          </div>
+        </section>
 
         {topPriorityEvents.length > 0 && (
           <section className="mb-8 rounded-lg border border-red-800 bg-red-950/10 p-6">
