@@ -12,6 +12,7 @@ type EventFeedItem = {
   category: string;
   confidenceLabel: string;
   importanceLabel: string;
+  importanceScore: number;
   status: string;
   sourceCount: number;
   sourcesJson: unknown;
@@ -99,6 +100,7 @@ export default async function EventsPage({
       category: string;
       confidenceLabel: string;
       importanceLabel: string;
+      importanceScore: number;
       status: string;
       sourceCount: number;
       sourcesJson: unknown;
@@ -112,6 +114,7 @@ export default async function EventsPage({
       category: event.category,
       confidenceLabel: event.confidenceLabel,
       importanceLabel: event.importanceLabel,
+      importanceScore: event.importanceScore,
       status: event.status,
       sourceCount: event.sourceCount,
       sourcesJson: event.sourcesJson,
@@ -148,6 +151,12 @@ export default async function EventsPage({
     return true;
   });
 
+  const topPriorityEvents = events.filter(
+    (event) =>
+      event.importanceLabel.toLowerCase().includes("global") ||
+      event.importanceLabel.toLowerCase().includes("high")
+  );
+
   return (
     <main className="min-h-screen bg-black px-8 py-10 text-white">
       <AutoRefresh intervalMs={5000} />
@@ -163,6 +172,67 @@ export default async function EventsPage({
             support.
           </p>
         </header>
+
+        {topPriorityEvents.length > 0 && (
+          <section className="mb-8 rounded-lg border border-red-800 bg-red-950/10 p-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-red-300">
+                Top Priority Events
+              </h2>
+              <p className="text-sm text-gray-400">
+                Highest-priority live events in the current feed.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {topPriorityEvents.slice(0, 4).map((event) => (
+                <Link
+                  key={`${event.id}-top`}
+                  href={`/events/${event.slug}`}
+                  className={`block rounded-lg p-5 transition hover:border-gray-600 ${
+                    event.importanceLabel.toLowerCase().includes("global")
+                      ? "border border-red-700 bg-red-950/20"
+                      : "border border-purple-700 bg-purple-950/20"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold">{event.title}</h2>
+                      <p className="mt-2 text-sm text-gray-400">
+                        {event.region} · {event.category}
+                      </p>
+                      <p className="mt-2 text-xs text-gray-500">
+                        {new Date(event.eventTime).toUTCString()}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span
+                        className={`rounded border px-2 py-1 ${getConfidenceBadgeClass(
+                          event.confidenceLabel
+                        )}`}
+                      >
+                        {event.confidenceLabel} Confidence
+                      </span>
+
+                      <span
+                        className={`rounded border px-2 py-1 ${getImportanceBadgeClass(
+                          event.importanceLabel
+                        )}`}
+                      >
+                        {event.importanceLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-sm text-gray-300">
+                    {event.description}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="mb-8 rounded-lg border border-gray-800 bg-gray-950 p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
