@@ -315,7 +315,13 @@ export default async function EventsPage({
                 <Link
                   key={event.id}
                   href={`/events/${event.slug}`}
-                  className="block rounded-lg border border-gray-800 bg-gray-950 p-5 transition hover:border-gray-600"
+                  className={`block rounded-lg p-5 transition hover:border-gray-600 ${
+                    event.importanceLabel.toLowerCase().includes("global")
+                      ? "border border-red-700 bg-red-950/20"
+                      : event.importanceLabel.toLowerCase().includes("high")
+                      ? "border border-purple-700 bg-purple-950/20"
+                      : "border border-gray-800 bg-gray-950"
+                  }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
