@@ -82,9 +82,10 @@ export default async function EventsPage({
   const selectedStatus = filters.status ?? "";
 
   const allEventsRaw = await prisma.event.findMany({
-    orderBy: {
-      eventTime: "desc",
-    },
+    orderBy: [
+      { importanceScore: "desc" },
+      { eventTime: "desc" },
+    ],
   });
 
   const allEvents: EventFeedItem[] = allEventsRaw.map(
