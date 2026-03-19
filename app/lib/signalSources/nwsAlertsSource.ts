@@ -55,7 +55,7 @@ function confidenceFromSeverity(severity: string): string {
   const normalized = severity.toLowerCase();
 
   if (["extreme", "severe"].includes(normalized)) return "High";
-  if (["moderate"].includes(normalized)) return "Medium";
+  if (normalized === "moderate") return "Medium";
   return "Low";
 }
 
@@ -66,7 +66,6 @@ function categoryFromEvent(eventName: string): string {
     normalized.includes("tornado") ||
     normalized.includes("thunderstorm") ||
     normalized.includes("hurricane") ||
-    normalized.includes("typhoon") ||
     normalized.includes("storm") ||
     normalized.includes("wind")
   ) {
@@ -78,7 +77,8 @@ function categoryFromEvent(eventName: string): string {
     normalized.includes("rain") ||
     normalized.includes("snow") ||
     normalized.includes("blizzard") ||
-    normalized.includes("ice")
+    normalized.includes("ice") ||
+    normalized.includes("freeze")
   ) {
     return "Weather";
   }
@@ -94,19 +94,28 @@ function categoryFromEvent(eventName: string): string {
   if (
     normalized.includes("heat") ||
     normalized.includes("cold") ||
-    normalized.includes("freeze")
+    normalized.includes("tsunami")
   ) {
-    return "Weather";
-  }
-
-  if (normalized.includes("tsunami")) {
     return "Disaster";
   }
 
   return "Weather";
 }
 
-function buildKeywords(eventName: string, areaDesc: string, severity: string): string[] {
+function importanceSeedFromSeverity(severity: string): string {
+  const normalized = severity.toLowerCase();
+
+  if (normalized === "extreme") return "Global Priority";
+  if (normalized === "severe") return "High Priority";
+  if (normalized === "moderate") return "Medium Importance";
+  return "Low Importance";
+}
+
+function buildKeywords(
+  eventName: string,
+  areaDesc: string,
+  severity: string
+): string[] {
   const tokens = [
     "weather",
     "noaa",
@@ -124,17 +133,67 @@ function buildKeywords(eventName: string, areaDesc: string, severity: string): s
   return Array.from(new Set(tokens)).slice(0, 15);
 }
 
+function isHighValueAlert(feature: NwsAlertFeature): boolean {
+  const props = feature.properties;
+  if (!props) return false;
+
+  const severity = safeString(props.severity).toLowerCase();
+  const eventName = safeString(props.event).toLowerCase();
+
+  if (["extreme", "severe", "moderate"].includes(severity)) {
+    return true;
+  }
+
+  if (
+    eventName.includes("tornado") ||
+    eventName.includes("hurricane") ||
+    eventName.includes("tsunami") ||
+    eventName.includes("flash flood") ||
+    eventName.includes("fire weather") ||
+    eventName.includes("red flag")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function buildTitle(eventName: string, locationLabel: string): string {
+  return `${eventName} issued for ${locationLabel}`;
+}
+
+function buildDescription(
+  description: string,
+  severity: string,
+  urgency: string,
+  certainty: string
+): string {
+  const parts: string[] = [];
+
+  if (severity) parts.push(`Severity: ${severity}.`);
+  if (urgency) parts.push(`Urgency: ${urgency}.`);
+  if (certainty) parts.push(`Certainty: ${certainty}.`);
+  if (description) parts.push(description);
+
+  return truncate(normalizeWhitespace(parts.join(" ")), 400);
+}
+
 function featureToSignal(feature: NwsAlertFeature): ExternalSignal | null {
   const props = feature.properties;
   if (!props) return null;
+  if (!isHighValueAlert(feature)) return null;
 
   const eventName = safeString(props.event, "Weather Alert");
-  const areaDesc = normalizeWhitespace(safeString(props.areaDesc, "United States"));
-  const headline = normalizeWhitespace(safeString(props.headline, eventName));
+  const areaDesc = normalizeWhitespace(
+    safeString(props.areaDesc, "United States")
+  );
+  const severity = safeString(props.severity, "Unknown");
+  const urgency = safeString(props.urgency, "Unknown");
+  const certainty = safeString(props.certainty, "Unknown");
   const description = normalizeWhitespace(
     safeString(props.description, "National Weather Service alert issued.")
   );
-  const severity = safeString(props.severity, "Unknown");
+
   const sent =
     safeString(props.effective) ||
     safeString(props.onset) ||
@@ -146,8 +205,8 @@ function featureToSignal(feature: NwsAlertFeature): ExternalSignal | null {
   return {
     source: "NWS",
     sourceType: "Government",
-    title: truncate(headline || `${eventName} issued for ${locationLabel}`, 180),
-    description: truncate(description, 400),
+    title: truncate(buildTitle(eventName, locationLabel), 180),
+    description: buildDescription(description, severity, urgency, certainty),
     timestamp: new Date(sent).toISOString(),
     category: categoryFromEvent(eventName),
     region: "North America",
@@ -182,7 +241,7 @@ export const nwsAlertsSource: SignalSource = {
     const signals = (data.features ?? [])
       .map(featureToSignal)
       .filter((item): item is ExternalSignal => item !== null)
-      .slice(0, 50);
+      .slice(0, 40);
 
     return {
       sourceKey: "nws-alerts",
