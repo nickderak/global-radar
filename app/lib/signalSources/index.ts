@@ -1,4 +1,6 @@
-import { mockWorldSource } from "./mockWorldSource";
+import { usgsEarthquakeSource } from "./usgsEarthquakeSource";
 import type { SignalSource } from "./types";
 
-export const registeredSignalSources: SignalSource[] = [mockWorldSource];
+export const registeredSignalSources: SignalSource[] = [
+  usgsEarthquakeSource,
+];
