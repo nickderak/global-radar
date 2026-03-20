@@ -3,7 +3,7 @@ import type { ExternalSignal } from "./signalSources/types";
 
 type ProcessingResult = {
   signalTitle: string;
-  status: "inserted" | "duplicate";
+  status: "inserted" | "merged";
 };
 
 function normalizeText(value: string): string {
@@ -24,50 +24,23 @@ function generateFingerprint(signal: {
 
 function confidenceScoreFromSeed(seed?: string): number {
   const normalized = (seed ?? "Medium").toLowerCase();
-
   if (normalized === "high") return 90;
   if (normalized === "medium") return 60;
   return 35;
 }
 
-function importanceFromCategory(category: string): {
-  importanceLabel: string;
-  importanceScore: number;
-} {
+function importanceFromCategory(category: string) {
   const normalized = category.toLowerCase();
 
-  if (normalized === "military") {
-    return {
-      importanceLabel: "High Priority",
-      importanceScore: 80,
-    };
-  }
-
   if (normalized === "disaster") {
-    return {
-      importanceLabel: "High Priority",
-      importanceScore: 75,
-    };
+    return { importanceLabel: "High Priority", importanceScore: 75 };
   }
 
   if (normalized === "weather") {
-    return {
-      importanceLabel: "Medium Importance",
-      importanceScore: 55,
-    };
+    return { importanceLabel: "Medium Importance", importanceScore: 55 };
   }
 
-  if (normalized === "infrastructure") {
-    return {
-      importanceLabel: "Medium Importance",
-      importanceScore: 50,
-    };
-  }
-
-  return {
-    importanceLabel: "Medium Importance",
-    importanceScore: 50,
-  };
+  return { importanceLabel: "Medium Importance", importanceScore: 50 };
 }
 
 export async function ingestSignals(signals: ExternalSignal[]) {
@@ -79,15 +52,19 @@ export async function ingestSignals(signals: ExternalSignal[]) {
     take: 500,
   });
 
-  const existingFingerprints = new Set(
-    recentEvents.map((event) =>
-      generateFingerprint({
-        title: event.title,
-        locationLabel: event.locationLabel,
-        category: event.category,
-      })
-    )
-  );
+  const fingerprintMap = new Map<
+    string,
+    typeof recentEvents[number]
+  >();
+
+  for (const event of recentEvents) {
+    const fp = generateFingerprint({
+      title: event.title,
+      locationLabel: event.locationLabel,
+      category: event.category,
+    });
+    fingerprintMap.set(fp, event);
+  }
 
   for (const signal of signals) {
     const fingerprint = generateFingerprint({
@@ -96,14 +73,43 @@ export async function ingestSignals(signals: ExternalSignal[]) {
       category: signal.category,
     });
 
-    if (existingFingerprints.has(fingerprint)) {
+    const existingEvent = fingerprintMap.get(fingerprint);
+
+    if (existingEvent) {
+      // MERGE LOGIC
+      const existingSources = Array.isArray(existingEvent.sourcesJson)
+        ? existingEvent.sourcesJson
+        : [];
+
+      if (!existingSources.includes(signal.source)) {
+        const updatedSources = [...existingSources, signal.source];
+
+        const updatedTimeline = [
+          ...(Array.isArray(existingEvent.timelineJson)
+            ? existingEvent.timelineJson
+            : []),
+          `${new Date(signal.timestamp).toUTCString()} — ${signal.source} reported`,
+        ];
+
+        await prisma.event.update({
+          where: { id: existingEvent.id },
+          data: {
+            sourceCount: updatedSources.length,
+            sourcesJson: updatedSources,
+            timelineJson: updatedTimeline,
+          },
+        });
+      }
+
       processingResults.push({
         signalTitle: signal.title,
-        status: "duplicate",
+        status: "merged",
       });
+
       continue;
     }
 
+    // INSERT NEW EVENT
     const slugBase = signal.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -132,12 +138,12 @@ export async function ingestSignals(signals: ExternalSignal[]) {
         sourceCount: 1,
         sourcesJson: [signal.source],
         timelineJson: [
-          `${new Date(signal.timestamp).toUTCString()} — ${signal.source} reported: ${signal.title}`,
+          `${new Date(signal.timestamp).toUTCString()} — ${signal.source} reported`,
         ],
       },
     });
 
-    existingFingerprints.add(fingerprint);
+    fingerprintMap.set(fingerprint, newEvent);
     insertedEvents.push(newEvent);
 
     processingResults.push({
