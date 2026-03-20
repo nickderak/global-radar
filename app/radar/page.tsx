@@ -74,11 +74,15 @@ function getHeatLabel(score: number) {
   return "Low";
 }
 
+function getWatchlistCardClass(isMatch: boolean) {
+  return isMatch
+    ? "border border-red-700 bg-red-950/20"
+    : "border border-gray-800 bg-gray-950";
+}
+
 export default async function RadarPage() {
   const events = await prisma.event.findMany({
-    orderBy: {
-      importanceScore: "desc",
-    },
+    orderBy: [{ importanceScore: "desc" }, { eventTime: "desc" }],
   });
 
   const radarEvents: RadarEvent[] = events.map((event) => ({
@@ -112,9 +116,12 @@ export default async function RadarPage() {
         <div className="p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
+              <p className="mb-2 text-sm uppercase tracking-[0.2em] text-gray-400">
+                GLOBAL RADAR
+              </p>
               <h1 className="text-3xl font-bold">Global Event Radar</h1>
               <p className="mt-2 text-gray-400">
-                Live database-backed event map with visible source support.
+                Live event map with source-aware prioritization and watchlist visibility.
               </p>
             </div>
 
@@ -148,7 +155,7 @@ export default async function RadarPage() {
                   <Link
                     key={`radar-watch-${event.id}`}
                     href={`/events/${event.slug}`}
-                    className="block rounded border border-red-700 bg-black p-4 hover:border-red-500"
+                    className="block rounded border border-red-700 bg-black p-4 transition hover:border-red-500"
                   >
                     <p className="font-semibold text-white">{event.title}</p>
                     <p className="mt-1 text-xs text-gray-400">
@@ -175,76 +182,92 @@ export default async function RadarPage() {
               <p className="text-gray-400">No events found in database.</p>
             ) : (
               <div className="space-y-4">
-                {radarEvents.map((event) => (
-                  <Link
-                    key={event.id}
-                    href={`/events/${event.slug}`}
-                    className="block rounded-lg border border-gray-800 bg-gray-950 p-4 transition hover:border-gray-600"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-semibold">{event.title}</h3>
-                        <p className="mt-2 text-sm text-gray-400">
-                          {event.region} · {event.category}
-                        </p>
-                        <p className="mt-2 text-xs text-gray-500">
-                          {new Date(event.eventTime).toUTCString()}
-                        </p>
-                      </div>
+                {radarEvents.map((event) => {
+                  const watchlistMatch = isWatchlistMatch({
+                    region: event.region,
+                    category: event.category,
+                    importanceScore: event.importanceScore,
+                  });
 
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <span
-                          className={`rounded border px-2 py-1 ${getBadgeClass(
-                            event.confidenceLabel,
-                            "confidence"
-                          )}`}
-                        >
-                          {event.confidenceLabel} Confidence
-                        </span>
+                  return (
+                    <Link
+                      key={event.id}
+                      href={`/events/${event.slug}`}
+                      className={`block rounded-lg p-4 transition hover:border-gray-600 ${getWatchlistCardClass(
+                        watchlistMatch
+                      )}`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-semibold">{event.title}</h3>
+                          <p className="mt-2 text-sm text-gray-400">
+                            {event.region} · {event.category}
+                          </p>
+                          <p className="mt-2 text-xs text-gray-500">
+                            {new Date(event.eventTime).toUTCString()}
+                          </p>
+                        </div>
 
-                        <span
-                          className={`rounded border px-2 py-1 ${getBadgeClass(
-                            event.importanceLabel,
-                            "importance"
-                          )}`}
-                        >
-                          {event.importanceLabel}
-                        </span>
-
-                        <span className="rounded border border-gray-700 bg-black px-2 py-1 text-gray-300">
-                          {event.sourceCount} Sources
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">
-                        Sources
-                      </p>
-
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {event.sources.slice(0, 4).map((source, index) => (
+                        <div className="flex flex-wrap gap-2 text-xs">
                           <span
-                            key={`${event.id}-list-source-${index}`}
-                            className="rounded border border-gray-700 bg-black px-2 py-1 text-xs text-gray-300"
+                            className={`rounded border px-2 py-1 ${getBadgeClass(
+                              event.confidenceLabel,
+                              "confidence"
+                            )}`}
                           >
-                            {source}
+                            {event.confidenceLabel} Confidence
                           </span>
-                        ))}
 
-                        {event.sources.length > 4 && (
-                          <span className="rounded border border-gray-700 bg-black px-2 py-1 text-xs text-gray-400">
-                            +{event.sources.length - 4} more
+                          <span
+                            className={`rounded border px-2 py-1 ${getBadgeClass(
+                              event.importanceLabel,
+                              "importance"
+                            )}`}
+                          >
+                            {event.importanceLabel}
                           </span>
-                        )}
+
+                          <span className="rounded border border-gray-700 bg-black px-2 py-1 text-gray-300">
+                            {event.sourceCount} Sources
+                          </span>
+
+                          {watchlistMatch && (
+                            <span className="rounded border border-red-700 bg-red-950 px-2 py-1 text-red-300">
+                              Watchlist
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    <p className="mt-3 text-xs text-gray-500">
-                      Coordinates: {event.position[0]}, {event.position[1]}
-                    </p>
-                  </Link>
-                ))}
+                      <div className="mt-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-500">
+                          Sources
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {event.sources.slice(0, 4).map((source, index) => (
+                            <span
+                              key={`${event.id}-list-source-${index}`}
+                              className="rounded border border-gray-700 bg-black px-2 py-1 text-xs text-gray-300"
+                            >
+                              {source}
+                            </span>
+                          ))}
+
+                          {event.sources.length > 4 && (
+                            <span className="rounded border border-gray-700 bg-black px-2 py-1 text-xs text-gray-400">
+                              +{event.sources.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="mt-3 text-xs text-gray-500">
+                        Coordinates: {event.position[0]}, {event.position[1]}
+                      </p>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>
