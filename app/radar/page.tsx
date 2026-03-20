@@ -2,6 +2,7 @@ import Link from "next/link";
 import RadarMap from "./RadarMap";
 import { prisma } from "../lib/prisma";
 import AutoRefresh from "../components/AutoRefresh";
+import { isWatchlistMatch } from "../lib/watchlistFilter";
 
 type RadarEvent = {
   id: string;
@@ -95,17 +96,70 @@ export default async function RadarPage() {
     sources: safeSources(event.sourcesJson),
   }));
 
+  const watchlistEvents = radarEvents.filter((event) =>
+    isWatchlistMatch({
+      region: event.region,
+      category: event.category,
+      importanceScore: event.importanceScore,
+    })
+  );
+
   return (
     <main className="min-h-screen bg-black text-white">
       <AutoRefresh intervalMs={5000} />
 
       <div className="mx-auto max-w-7xl">
         <div className="p-6">
-          <h1 className="text-3xl font-bold">Global Event Radar</h1>
-          <p className="mt-2 text-gray-400">
-            Live database-backed event map with visible source support.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold">Global Event Radar</h1>
+              <p className="mt-2 text-gray-400">
+                Live database-backed event map with visible source support.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-red-800 bg-red-950 px-4 py-3">
+              <p className="text-sm font-semibold text-red-300">
+                Watchlist Events
+              </p>
+              <p className="text-xs text-red-400">
+                {watchlistEvents.length} active match
+                {watchlistEvents.length === 1 ? "" : "es"}
+              </p>
+            </div>
+          </div>
         </div>
+
+        {watchlistEvents.length > 0 && (
+          <div className="px-6 pb-6">
+            <div className="rounded-lg border border-red-800 bg-red-950/10 p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-red-300">
+                  Radar Watchlist
+                </h2>
+                <span className="text-sm text-red-400">
+                  {watchlistEvents.length} match
+                  {watchlistEvents.length === 1 ? "" : "es"}
+                </span>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {watchlistEvents.slice(0, 4).map((event) => (
+                  <Link
+                    key={`radar-watch-${event.id}`}
+                    href={`/events/${event.slug}`}
+                    className="block rounded border border-red-700 bg-black p-4 hover:border-red-500"
+                  >
+                    <p className="font-semibold text-white">{event.title}</p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {event.region} · {event.category}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="px-6 pb-6">
           <div className="overflow-hidden rounded-lg border border-gray-800">
