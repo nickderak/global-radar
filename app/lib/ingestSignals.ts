@@ -22,11 +22,38 @@ function generateFingerprint(signal: {
   ].join("|");
 }
 
-function confidenceScoreFromSeed(seed?: string): number {
+function baseConfidenceScoreFromSeed(seed?: string): number {
   const normalized = (seed ?? "Medium").toLowerCase();
-  if (normalized === "high") return 90;
-  if (normalized === "medium") return 60;
+
+  if (normalized === "high") return 75;
+  if (normalized === "medium") return 55;
   return 35;
+}
+
+function confidenceFromSourceCount(
+  sourceCount: number,
+  baseScore: number
+): { confidenceLabel: string; confidenceScore: number } {
+  const adjustedScore = Math.min(baseScore + (sourceCount - 1) * 12, 95);
+
+  if (adjustedScore >= 80) {
+    return {
+      confidenceLabel: "High",
+      confidenceScore: adjustedScore,
+    };
+  }
+
+  if (adjustedScore >= 50) {
+    return {
+      confidenceLabel: "Medium",
+      confidenceScore: adjustedScore,
+    };
+  }
+
+  return {
+    confidenceLabel: "Low",
+    confidenceScore: adjustedScore,
+  };
 }
 
 function importanceFromCategory(category: string) {
@@ -38,6 +65,10 @@ function importanceFromCategory(category: string) {
 
   if (normalized === "weather") {
     return { importanceLabel: "Medium Importance", importanceScore: 55 };
+  }
+
+  if (normalized === "military") {
+    return { importanceLabel: "High Priority", importanceScore: 80 };
   }
 
   return { importanceLabel: "Medium Importance", importanceScore: 50 };
@@ -52,10 +83,7 @@ export async function ingestSignals(signals: ExternalSignal[]) {
     take: 500,
   });
 
-  const fingerprintMap = new Map<
-    string,
-    typeof recentEvents[number]
-  >();
+  const fingerprintMap = new Map<string, (typeof recentEvents)[number]>();
 
   for (const event of recentEvents) {
     const fp = generateFingerprint({
@@ -76,30 +104,46 @@ export async function ingestSignals(signals: ExternalSignal[]) {
     const existingEvent = fingerprintMap.get(fingerprint);
 
     if (existingEvent) {
-      // MERGE LOGIC
       const existingSources = Array.isArray(existingEvent.sourcesJson)
-        ? existingEvent.sourcesJson
+        ? existingEvent.sourcesJson.map((item) => String(item))
+        : [];
+
+      const updatedSources = existingSources.includes(signal.source)
+        ? existingSources
+        : [...existingSources, signal.source];
+
+      const updatedTimeline = Array.isArray(existingEvent.timelineJson)
+        ? existingEvent.timelineJson.map((item) => String(item))
         : [];
 
       if (!existingSources.includes(signal.source)) {
-        const updatedSources = [...existingSources, signal.source];
-
-        const updatedTimeline = [
-          ...(Array.isArray(existingEvent.timelineJson)
-            ? existingEvent.timelineJson
-            : []),
-          `${new Date(signal.timestamp).toUTCString()} — ${signal.source} reported`,
-        ];
-
-        await prisma.event.update({
-          where: { id: existingEvent.id },
-          data: {
-            sourceCount: updatedSources.length,
-            sourcesJson: updatedSources,
-            timelineJson: updatedTimeline,
-          },
-        });
+        updatedTimeline.push(
+          `${new Date(signal.timestamp).toUTCString()} — ${signal.source} reported`
+        );
       }
+
+      const baseScore = Math.max(
+        existingEvent.confidenceScore,
+        baseConfidenceScoreFromSeed(signal.confidenceSeed)
+      );
+
+      const updatedConfidence = confidenceFromSourceCount(
+        updatedSources.length,
+        baseScore
+      );
+
+      const updatedEvent = await prisma.event.update({
+        where: { id: existingEvent.id },
+        data: {
+          sourceCount: updatedSources.length,
+          sourcesJson: updatedSources,
+          timelineJson: updatedTimeline,
+          confidenceLabel: updatedConfidence.confidenceLabel,
+          confidenceScore: updatedConfidence.confidenceScore,
+        },
+      });
+
+      fingerprintMap.set(fingerprint, updatedEvent);
 
       processingResults.push({
         signalTitle: signal.title,
@@ -109,13 +153,14 @@ export async function ingestSignals(signals: ExternalSignal[]) {
       continue;
     }
 
-    // INSERT NEW EVENT
     const slugBase = signal.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
 
-    const confidenceScore = confidenceScoreFromSeed(signal.confidenceSeed);
+    const sourceCount = 1;
+    const baseScore = baseConfidenceScoreFromSeed(signal.confidenceSeed);
+    const confidence = confidenceFromSourceCount(sourceCount, baseScore);
     const { importanceLabel, importanceScore } = importanceFromCategory(
       signal.category
     );
@@ -130,12 +175,12 @@ export async function ingestSignals(signals: ExternalSignal[]) {
         country: signal.country,
         locationLabel: signal.locationLabel,
         category: signal.category,
-        confidenceLabel: signal.confidenceSeed ?? "Medium",
-        confidenceScore,
+        confidenceLabel: confidence.confidenceLabel,
+        confidenceScore: confidence.confidenceScore,
         importanceLabel,
         importanceScore,
         status: "Active",
-        sourceCount: 1,
+        sourceCount,
         sourcesJson: [signal.source],
         timelineJson: [
           `${new Date(signal.timestamp).toUTCString()} — ${signal.source} reported`,
