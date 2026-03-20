@@ -32,7 +32,7 @@ export default function SettingsPage() {
               </p>
               <h1 className="text-3xl font-bold">Settings</h1>
               <p className="mt-3 text-gray-300">
-                Current watchlist configuration and platform monitoring rules.
+                Watchlist configuration, navigation shortcuts, and operating rules.
               </p>
             </div>
 
@@ -55,7 +55,6 @@ export default function SettingsPage() {
           </div>
         </header>
 
-        {/* QUICK NAVIGATION (UPDATED WITH ROADMAP) */}
         <section className="mb-6 grid gap-4 md:grid-cols-4">
           <Link
             href="/events"
@@ -159,22 +158,49 @@ export default function SettingsPage() {
           <div className="mt-4 space-y-4 text-sm text-gray-300">
             <div className="rounded border border-gray-800 bg-black p-4">
               <p className="font-medium text-white">File to Edit</p>
-              <p className="mt-2">
-                app/lib/watchlistConfig.ts
-              </p>
+              <p className="mt-2">app/lib/watchlistConfig.ts</p>
             </div>
 
             <div className="rounded border border-gray-800 bg-black p-4">
               <p className="font-medium text-white">What to Change</p>
               <p className="mt-2">
-                Update regions, categories, or importance score.
+                Update regions, categories, or minimum importance score to control
+                what appears in watchlist sections.
               </p>
             </div>
 
             <div className="rounded border border-gray-800 bg-black p-4">
               <p className="font-medium text-white">After Editing</p>
+              <p className="mt-2">Save → git add . → git commit → git push</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-gray-800 bg-gray-950 p-6">
+          <h2 className="text-xl font-semibold">How Watchlist Matching Works</h2>
+
+          <div className="mt-4 space-y-4 text-sm text-gray-300">
+            <div className="rounded border border-gray-800 bg-black p-4">
+              <p className="font-medium text-white">Region Match</p>
               <p className="mt-2">
-                Save → git add . → git commit → git push
+                An event can match the watchlist if its region is included in the
+                configured watchlist regions.
+              </p>
+            </div>
+
+            <div className="rounded border border-gray-800 bg-black p-4">
+              <p className="font-medium text-white">Category Match</p>
+              <p className="mt-2">
+                An event can match the watchlist if its category is included in the
+                configured watchlist categories.
+              </p>
+            </div>
+
+            <div className="rounded border border-gray-800 bg-black p-4">
+              <p className="font-medium text-white">Importance Threshold</p>
+              <p className="mt-2">
+                An event must also meet or exceed the minimum importance score to
+                appear in watchlist sections across the platform.
               </p>
             </div>
           </div>
