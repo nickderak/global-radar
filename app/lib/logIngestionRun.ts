@@ -1,23 +1,9 @@
 import { prisma } from "./prisma";
 
 type ProcessingItem = {
-  reportId: string;
-  title: string;
-  result: unknown;
+  signalTitle: string;
+  status: "inserted" | "merged";
 };
-
-function getAction(result: unknown): string {
-  if (
-    typeof result === "object" &&
-    result !== null &&
-    "action" in result &&
-    typeof (result as { action?: unknown }).action === "string"
-  ) {
-    return (result as { action: string }).action;
-  }
-
-  return "unknown";
-}
 
 export async function logIngestionRun(input: {
   runType: string;
@@ -31,18 +17,13 @@ export async function logIngestionRun(input: {
   let errorCount = 0;
 
   for (const item of input.processingResults) {
-    const action = getAction(item.result);
-
-    if (action === "create") createdCount++;
-    else if (action === "merged") mergedCount++;
-    else if (action === "review") reviewCount++;
-    else if (action === "error") errorCount++;
+    if (item.status === "inserted") createdCount++;
+    else if (item.status === "merged") mergedCount++;
   }
 
   const notesJson = input.processingResults.map((item) => ({
-    reportId: item.reportId,
-    title: item.title,
-    action: getAction(item.result),
+    title: item.signalTitle,
+    action: item.status,
   }));
 
   const run = await prisma.ingestionRun.create({
