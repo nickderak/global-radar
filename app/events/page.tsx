@@ -51,17 +51,46 @@ function getImportanceBadgeClass(value: string) {
   return "border-gray-700 bg-gray-950 text-gray-300";
 }
 
+function getStatusBadgeClass(value: string) {
+  const normalized = value.toLowerCase();
+
+  if (normalized.includes("active")) {
+    return "border-blue-700 bg-blue-950 text-blue-300";
+  }
+
+  if (normalized.includes("monitor")) {
+    return "border-yellow-700 bg-yellow-950 text-yellow-300";
+  }
+
+  if (normalized.includes("resolved")) {
+    return "border-green-700 bg-green-950 text-green-300";
+  }
+
+  return "border-gray-700 bg-gray-950 text-gray-300";
+}
+
 function safeSources(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item));
 }
 
+function getEventCardClass(importanceLabel: string) {
+  const normalized = importanceLabel.toLowerCase();
+
+  if (normalized.includes("global")) {
+    return "border border-red-700 bg-red-950/20";
+  }
+
+  if (normalized.includes("high")) {
+    return "border border-purple-700 bg-purple-950/20";
+  }
+
+  return "border border-gray-800 bg-gray-950";
+}
+
 export default async function EventsPage() {
   const allEventsRaw = await prisma.event.findMany({
-    orderBy: [
-      { importanceScore: "desc" },
-      { eventTime: "desc" },
-    ],
+    orderBy: [{ importanceScore: "desc" }, { eventTime: "desc" }],
   });
 
   const events: EventFeedItem[] = allEventsRaw.map((event) => ({
@@ -84,6 +113,10 @@ export default async function EventsPage() {
   const activeEvents = events.filter((event) =>
     event.status.toLowerCase().includes("active")
   );
+  const topPriorityEvents = events.filter((event) => {
+    const normalized = event.importanceLabel.toLowerCase();
+    return normalized.includes("global") || normalized.includes("high");
+  });
 
   return (
     <main className="min-h-screen bg-black px-8 py-10 text-white">
@@ -98,8 +131,8 @@ export default async function EventsPage() {
               </p>
               <h1 className="text-4xl font-bold">Event Feed</h1>
               <p className="mt-3 text-gray-300">
-                Live global event intelligence feed with filters and visible source
-                support.
+                Live global event intelligence feed with watchlist visibility,
+                live status, and source-aware prioritization.
               </p>
             </div>
 
@@ -109,6 +142,7 @@ export default async function EventsPage() {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
                   <span className="relative inline-flex h-3 w-3 rounded-full bg-green-400" />
                 </span>
+
                 <div>
                   <p className="text-sm font-semibold text-green-300">
                     Live Monitoring Active
@@ -144,29 +178,25 @@ export default async function EventsPage() {
           </div>
         </section>
 
-        <section className="mb-8 rounded-lg border border-red-800 bg-red-950 p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-red-300">
-              Watchlist Alerts
-            </h2>
+        {watchlistEvents.length > 0 && (
+          <section className="mb-8 rounded-lg border border-red-800 bg-red-950 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-red-300">
+                Watchlist Alerts
+              </h2>
 
-            <span className="text-sm text-red-400">
-              {watchlistEvents.length} match
-              {watchlistEvents.length === 1 ? "" : "es"}
-            </span>
-          </div>
+              <span className="text-sm text-red-400">
+                {watchlistEvents.length} match
+                {watchlistEvents.length === 1 ? "" : "es"}
+              </span>
+            </div>
 
-          {watchlistEvents.length === 0 ? (
-            <p className="text-sm text-red-400">
-              No high-priority watchlist events.
-            </p>
-          ) : (
             <div className="space-y-3">
               {watchlistEvents.slice(0, 5).map((event) => (
                 <Link
                   key={`watch-${event.id}`}
                   href={`/events/${event.slug}`}
-                  className="block rounded border border-red-700 bg-black p-4 hover:border-red-500"
+                  className="block rounded border border-red-700 bg-black p-4 transition hover:border-red-500"
                 >
                   <p className="font-semibold text-white">{event.title}</p>
                   <p className="mt-1 text-xs text-gray-400">
@@ -175,8 +205,67 @@ export default async function EventsPage() {
                 </Link>
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
+
+        {topPriorityEvents.length > 0 && (
+          <section className="mb-8 rounded-lg border border-red-800 bg-red-950/10 p-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-red-300">
+                Top Priority Events
+              </h2>
+              <p className="text-sm text-gray-400">
+                Highest-priority live events in the current feed.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {topPriorityEvents.slice(0, 4).map((event) => (
+                <Link
+                  key={`top-${event.id}`}
+                  href={`/events/${event.slug}`}
+                  className={`block rounded-lg p-5 transition hover:border-gray-600 ${getEventCardClass(
+                    event.importanceLabel
+                  )}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold">{event.title}</h2>
+                      <p className="mt-2 text-sm text-gray-400">
+                        {event.region} · {event.category}
+                      </p>
+                      <p className="mt-2 text-xs text-gray-500">
+                        {new Date(event.eventTime).toUTCString()}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span
+                        className={`rounded border px-2 py-1 ${getConfidenceBadgeClass(
+                          event.confidenceLabel
+                        )}`}
+                      >
+                        {event.confidenceLabel} Confidence
+                      </span>
+
+                      <span
+                        className={`rounded border px-2 py-1 ${getImportanceBadgeClass(
+                          event.importanceLabel
+                        )}`}
+                      >
+                        {event.importanceLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-sm text-gray-300">
+                    {event.description}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="space-y-4">
           {events.map((event) => {
@@ -186,13 +275,9 @@ export default async function EventsPage() {
               <Link
                 key={event.id}
                 href={`/events/${event.slug}`}
-                className={`block rounded-lg p-5 transition hover:border-gray-600 ${
-                  event.importanceLabel.toLowerCase().includes("global")
-                    ? "border border-red-700 bg-red-950/20"
-                    : event.importanceLabel.toLowerCase().includes("high")
-                    ? "border border-purple-700 bg-purple-950/20"
-                    : "border border-gray-800 bg-gray-950"
-                }`}
+                className={`block rounded-lg p-5 transition hover:border-gray-600 ${getEventCardClass(
+                  event.importanceLabel
+                )}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -222,12 +307,16 @@ export default async function EventsPage() {
                       {event.importanceLabel}
                     </span>
 
-                    <span className="rounded border border-gray-700 bg-black px-2 py-1 text-gray-300">
-                      {event.sourceCount} Sources
+                    <span
+                      className={`rounded border px-2 py-1 ${getStatusBadgeClass(
+                        event.status
+                      )}`}
+                    >
+                      {event.status}
                     </span>
 
                     <span className="rounded border border-gray-700 bg-black px-2 py-1 text-gray-300">
-                      {event.status}
+                      {event.sourceCount} Sources
                     </span>
                   </div>
                 </div>
@@ -238,14 +327,20 @@ export default async function EventsPage() {
 
                 {sources.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {sources.slice(0, 4).map((s, i) => (
+                    {sources.slice(0, 4).map((source, index) => (
                       <span
-                        key={i}
+                        key={`${event.id}-source-${index}`}
                         className="rounded border border-gray-700 px-2 py-1 text-xs"
                       >
-                        {s}
+                        {source}
                       </span>
                     ))}
+
+                    {sources.length > 4 && (
+                      <span className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-400">
+                        +{sources.length - 4} more
+                      </span>
+                    )}
                   </div>
                 )}
               </Link>
