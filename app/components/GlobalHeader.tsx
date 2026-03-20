@@ -4,6 +4,7 @@ const publicNavItems = [
   { href: "/", label: "Home" },
   { href: "/events", label: "Event Feed" },
   { href: "/radar", label: "Radar" },
+  { href: "/settings", label: "Settings" },
 ];
 
 const adminNavItems = [
