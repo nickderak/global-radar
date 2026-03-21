@@ -7,6 +7,7 @@ import { japanMofaSource } from "./japanMofaSource";
 import { israelGovSource } from "./israelGovSource";
 import { unSecurityCouncilSource } from "./unSecurityCouncilSource";
 import { pakistanGovSource } from "./pakistanGovSource";
+import { chinaGovSource } from "./chinaGovSource";
 import type { SignalSource } from "./types";
 
 export const registeredSignalSources: SignalSource[] = [
@@ -19,4 +20,5 @@ export const registeredSignalSources: SignalSource[] = [
   israelGovSource,
   unSecurityCouncilSource,
   pakistanGovSource,
+  chinaGovSource,
 ];
