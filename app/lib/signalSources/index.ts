@@ -4,6 +4,8 @@ import { nwsAlertsSource } from "./nwsAlertsSource";
 import { gdacsAlertsSource } from "./gdacsAlertsSource";
 import { indiaGovSource } from "./indiaGovSource";
 import { japanMofaSource } from "./japanMofaSource";
+import { israelGovSource } from "./israelGovSource";
+import { unSecurityCouncilSource } from "./unSecurityCouncilSource";
 import type { SignalSource } from "./types";
 
 export const registeredSignalSources: SignalSource[] = [
@@ -13,4 +15,6 @@ export const registeredSignalSources: SignalSource[] = [
   gdacsAlertsSource,
   indiaGovSource,
   japanMofaSource,
+  israelGovSource,
+  unSecurityCouncilSource,
 ];
