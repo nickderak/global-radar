@@ -4,24 +4,57 @@ import type {
   SignalSourceResult,
 } from "./types";
 
+const ISRAEL_MFA_NEWS_URL =
+  "https://www.gov.il/en/collectors/news?officeId=6cbf57de-3976-484a-8666-995ca17899ec";
+
 function cleanText(value: string) {
-  return value.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").trim();
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function extractTag(content: string, tag: string) {
-  const regex = new RegExp(`<${tag}>(.*?)</${tag}>`, "g");
-  const matches = [...content.matchAll(regex)];
-  return matches.map((m) => cleanText(m[1]));
+function normalizeLink(link: string) {
+  if (!link) return ISRAEL_MFA_NEWS_URL;
+  if (link.startsWith("http")) return link;
+  if (link.startsWith("/")) return `https://www.gov.il${link}`;
+  return `https://www.gov.il/${link}`;
 }
 
-function parseItems(xml: string) {
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  return [...xml.matchAll(itemRegex)].map((m) => m[1]);
+function extractArticleBlocks(html: string) {
+  const matches = html.match(
+    /<a[^>]+href="\/en\/pages\/[^"]+"[\s\S]*?<\/a>/gi
+  );
+  return matches ?? [];
+}
+
+function extractHref(block: string) {
+  const match = block.match(/href="([^"]+)"/i);
+  return match ? match[1] : "";
+}
+
+function extractTitle(block: string) {
+  const text = cleanText(block);
+  return text || "Israel government update";
+}
+
+function extractDate(block: string) {
+  const match = block.match(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/);
+  if (!match) return new Date().toISOString();
+
+  const [day, month, year] = match[0].split(".");
+  return new Date(
+    `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T00:00:00.000Z`
+  ).toISOString();
 }
 
 function buildSignal(
   title: string,
-  description: string,
   link: string,
   timestamp: string
 ): ExternalSignal {
@@ -29,24 +62,32 @@ function buildSignal(
     source: "Israel Government",
     sourceType: "Government",
     title,
-    description,
+    description: "Israel government foreign affairs / national security update.",
     timestamp,
     category: "Geopolitics",
     region: "Middle East",
     country: "Israel",
     locationLabel: "Israel",
     actors: ["Government of Israel"],
-    keywords: ["israel", "government", "foreign policy", "security", "diplomacy"],
-    rawUrl: link,
+    keywords: ["israel", "government", "foreign affairs", "security", "diplomacy"],
+    rawUrl: normalizeLink(link),
     confidenceSeed: "High",
   };
 }
 
-async function fetchRss(url: string) {
-  const res = await fetch(url, { cache: "no-store" });
+async function fetchPage(url: string) {
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept: "text/html,application/xhtml+xml",
+    },
+  });
+
   if (!res.ok) {
-    throw new Error(`Israel government RSS failed: ${res.status}`);
+    throw new Error(`Israel government page failed: ${res.status}`);
   }
+
   return res.text();
 }
 
@@ -55,26 +96,31 @@ export const israelGovSource: SignalSource = {
   displayName: "Israel Government",
 
   async fetchSignals(): Promise<SignalSourceResult> {
-    const xml = await fetchRss(
-      "https://www.gov.il/en/Departments/news?format=rss"
-    );
+    try {
+      const html = await fetchPage(ISRAEL_MFA_NEWS_URL);
+      const blocks = extractArticleBlocks(html);
 
-    const items = parseItems(xml);
+      const signals: ExternalSignal[] = blocks.slice(0, 10).map((block) => {
+        const title = extractTitle(block);
+        const link = extractHref(block);
+        const published = extractDate(block);
 
-    const signals: ExternalSignal[] = items.slice(0, 10).map((item) => {
-      const title = extractTag(item, "title")[0] ?? "Israel update";
-      const description = extractTag(item, "description")[0] ?? "";
-      const link = extractTag(item, "link")[0] ?? "";
-      const pubDate =
-        extractTag(item, "pubDate")[0] ?? new Date().toISOString();
+        return buildSignal(title, link, published);
+      });
 
-      return buildSignal(title, description, link, pubDate);
-    });
+      return {
+        sourceKey: "israel-government",
+        fetchedCount: signals.length,
+        signals,
+      };
+    } catch (error) {
+      console.error("Israel feed error:", error);
 
-    return {
-      sourceKey: "israel-government",
-      fetchedCount: signals.length,
-      signals,
-    };
+      return {
+        sourceKey: "israel-government",
+        fetchedCount: 0,
+        signals: [],
+      };
+    }
   },
 };
