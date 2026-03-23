@@ -4,61 +4,85 @@ import type {
   SignalSourceResult,
 } from "./types";
 
+const INDIA_MEA_URL = "https://www.mea.gov.in/press-releases.htm";
+const INDIA_PIB_URL = "https://pib.gov.in/allRel.aspx";
+
 function cleanText(value: string) {
   return value
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-function extractTag(content: string, tag: string) {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "g");
-  const matches = [...content.matchAll(regex)];
-  return matches.map((m) => cleanText(m[1]));
+function normalizeLink(baseUrl: string, link: string) {
+  if (!link) return baseUrl;
+  if (link.startsWith("http")) return link;
+  if (link.startsWith("/")) {
+    const url = new URL(baseUrl);
+    return `${url.origin}${link}`;
+  }
+  return new URL(link, baseUrl).toString();
 }
 
-function parseItems(xml: string) {
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  return [...xml.matchAll(itemRegex)].map((m) => m[1]);
+function extractLinks(html: string, pattern: RegExp) {
+  const matches = [...html.matchAll(pattern)];
+  return Array.from(
+    new Set(
+      matches
+        .map((match) => match[1])
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+}
+
+function titleFromUrl(link: string) {
+  const raw = link.split("/").pop() ?? "india-update";
+
+  return raw
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
 }
 
 function buildSignal(
   source: string,
-  title: string,
-  description: string,
-  link: string,
-  timestamp: string
+  baseUrl: string,
+  link: string
 ): ExternalSignal {
   return {
     source,
     sourceType: "Government",
-    title,
-    description,
-    timestamp: new Date(timestamp).toISOString(),
+    title: titleFromUrl(link),
+    description: `${source} update.`,
+    timestamp: new Date().toISOString(),
     category: "Geopolitics",
     region: "South Asia",
     country: "India",
     locationLabel: "India",
     actors: ["Government of India"],
     keywords: ["india", "government", "policy", "diplomacy"],
-    rawUrl: link,
+    rawUrl: normalizeLink(baseUrl, link),
     confidenceSeed: "High",
   };
 }
 
-async function fetchRss(url: string) {
+async function fetchPage(url: string) {
   const res = await fetch(url, {
     cache: "no-store",
     headers: {
-      "User-Agent": "GlobalRadar/1.0",
+      "User-Agent": "Mozilla/5.0",
+      Accept: "text/html,application/xhtml+xml",
     },
   });
 
   if (!res.ok) {
-    throw new Error(`India RSS failed: ${res.status}`);
+    throw new Error(`India page failed: ${res.status}`);
   }
 
   return res.text();
@@ -69,38 +93,43 @@ export const indiaGovSource: SignalSource = {
   displayName: "India Government (MEA + PIB)",
 
   async fetchSignals(): Promise<SignalSourceResult> {
-    const urls = [
-      "https://www.mea.gov.in/rss-feed.htm",
-      "https://pib.gov.in/rssfeed.aspx",
-    ];
+    try {
+      const [meaHtml, pibHtml] = await Promise.all([
+        fetchPage(INDIA_MEA_URL),
+        fetchPage(INDIA_PIB_URL),
+      ]);
 
-    const allSignals: ExternalSignal[] = [];
+      const meaLinks = extractLinks(
+        meaHtml,
+        /href="([^"]*press-releases-details[^"]*)"/gi
+      );
+      const pibLinks = extractLinks(
+        pibHtml,
+        /href="([^"]*PressReleasePage\.aspx\?PRID=[^"]*)"/gi
+      );
 
-    for (const url of urls) {
-      try {
-        const xml = await fetchRss(url);
-        const items = parseItems(xml);
+      const signals = [
+        ...meaLinks.slice(0, 5).map((link) =>
+          buildSignal("India MEA", INDIA_MEA_URL, link)
+        ),
+        ...pibLinks.slice(0, 5).map((link) =>
+          buildSignal("India PIB", INDIA_PIB_URL, link)
+        ),
+      ];
 
-        for (const item of items.slice(0, 10)) {
-          const title = extractTag(item, "title")[0] ?? "India update";
-          const description = extractTag(item, "description")[0] ?? "";
-          const link = extractTag(item, "link")[0] ?? "";
-          const pubDate =
-            extractTag(item, "pubDate")[0] ?? new Date().toISOString();
+      return {
+        sourceKey: "india-government",
+        fetchedCount: signals.length,
+        signals,
+      };
+    } catch (error) {
+      console.error("India feed error:", error);
 
-          allSignals.push(
-            buildSignal("India Government", title, description, link, pubDate)
-          );
-        }
-      } catch (error) {
-        console.error("India feed error:", error);
-      }
+      return {
+        sourceKey: "india-government",
+        fetchedCount: 0,
+        signals: [],
+      };
     }
-
-    return {
-      sourceKey: "india-government",
-      fetchedCount: allSignals.length,
-      signals: allSignals,
-    };
   },
 };

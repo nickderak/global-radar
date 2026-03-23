@@ -26,44 +26,33 @@ function normalizeLink(link: string) {
   return `https://www.gov.il/${link}`;
 }
 
-function extractArticleBlocks(html: string) {
-  const matches = html.match(
-    /<a[^>]+href="\/en\/pages\/[^"]+"[\s\S]*?<\/a>/gi
+function extractArticleLinks(html: string) {
+  const matches = html.match(/href="\/en\/pages\/[^"]+"/gi) ?? [];
+  return Array.from(
+    new Set(
+      matches.map((match) => match.replace(/^href="/i, "").replace(/"$/, ""))
+    )
   );
-  return matches ?? [];
 }
 
-function extractHref(block: string) {
-  const match = block.match(/href="([^"]+)"/i);
-  return match ? match[1] : "";
+function titleFromSlug(link: string) {
+  const slug = link.split("/").pop() ?? "israel-update";
+
+  return slug
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
 }
 
-function extractTitle(block: string) {
-  const text = cleanText(block);
-  return text || "Israel government update";
-}
+function buildSignal(link: string): ExternalSignal {
+  const title = titleFromSlug(link);
 
-function extractDate(block: string) {
-  const match = block.match(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/);
-  if (!match) return new Date().toISOString();
-
-  const [day, month, year] = match[0].split(".");
-  return new Date(
-    `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T00:00:00.000Z`
-  ).toISOString();
-}
-
-function buildSignal(
-  title: string,
-  link: string,
-  timestamp: string
-): ExternalSignal {
   return {
     source: "Israel Government",
     sourceType: "Government",
     title,
     description: "Israel government foreign affairs / national security update.",
-    timestamp,
+    timestamp: new Date().toISOString(),
     category: "Geopolitics",
     region: "Middle East",
     country: "Israel",
@@ -98,15 +87,9 @@ export const israelGovSource: SignalSource = {
   async fetchSignals(): Promise<SignalSourceResult> {
     try {
       const html = await fetchPage(ISRAEL_MFA_NEWS_URL);
-      const blocks = extractArticleBlocks(html);
+      const links = extractArticleLinks(html);
 
-      const signals: ExternalSignal[] = blocks.slice(0, 10).map((block) => {
-        const title = extractTitle(block);
-        const link = extractHref(block);
-        const published = extractDate(block);
-
-        return buildSignal(title, link, published);
-      });
+      const signals = links.slice(0, 10).map((link) => buildSignal(link));
 
       return {
         sourceKey: "israel-government",
