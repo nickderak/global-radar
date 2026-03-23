@@ -4,32 +4,78 @@ import type {
   SignalSourceResult,
 } from "./types";
 
+const JAPAN_MOFA_NEWS_URL =
+  "https://www.mofa.go.jp/press/release/index.html";
+
 function cleanText(value: string) {
-  return value.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1").trim();
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function extractTag(content: string, tag: string) {
-  const regex = new RegExp(`<${tag}>(.*?)</${tag}>`, "g");
-  const matches = [...content.matchAll(regex)];
-  return matches.map((m) => cleanText(m[1]));
+function normalizeLink(link: string) {
+  if (!link) return JAPAN_MOFA_NEWS_URL;
+  if (link.startsWith("http")) return link;
+  if (link.startsWith("/")) return `https://www.mofa.go.jp${link}`;
+  return new URL(link, JAPAN_MOFA_NEWS_URL).toString();
 }
 
-function parseItems(xml: string) {
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  return [...xml.matchAll(itemRegex)].map((m) => m[1]);
+function extractLinks(html: string) {
+  const matches = [...html.matchAll(/href="([^"]*\/press\/release\/[^"]*)"/gi)];
+  return Array.from(
+    new Set(
+      matches
+        .map((match) => match[1])
+        .filter((value): value is string => Boolean(value))
+    )
+  );
 }
 
-async function fetchRss(url: string) {
+function titleFromUrl(link: string) {
+  const raw = link.split("/").pop() ?? "japan-update";
+
+  return raw
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
+
+function buildSignal(link: string): ExternalSignal {
+  return {
+    source: "Japan MOFA",
+    sourceType: "Government",
+    title: titleFromUrl(link),
+    description: "Japan Ministry of Foreign Affairs update.",
+    timestamp: new Date().toISOString(),
+    category: "Geopolitics",
+    region: "East Asia",
+    country: "Japan",
+    locationLabel: "Japan",
+    actors: ["Government of Japan"],
+    keywords: ["japan", "mofa", "foreign policy", "diplomacy"],
+    rawUrl: normalizeLink(link),
+    confidenceSeed: "High",
+  };
+}
+
+async function fetchPage(url: string) {
   const res = await fetch(url, {
     cache: "no-store",
     headers: {
       "User-Agent": "Mozilla/5.0",
-      "Accept": "application/rss+xml, application/xml",
+      Accept: "text/html,application/xhtml+xml",
     },
   });
 
   if (!res.ok) {
-    throw new Error(`Japan MOFA RSS failed: ${res.status}`);
+    throw new Error(`Japan MOFA page failed: ${res.status}`);
   }
 
   return res.text();
@@ -41,38 +87,13 @@ export const japanMofaSource: SignalSource = {
 
   async fetchSignals(): Promise<SignalSourceResult> {
     try {
-      const xml = await fetchRss(
-        "https://www.mofa.go.jp/press/release/rss.xml"
-      );
+      const html = await fetchPage(JAPAN_MOFA_NEWS_URL);
+      const links = extractLinks(html);
 
-      const items = parseItems(xml);
-
-      const signals: ExternalSignal[] = items.slice(0, 10).map((item) => {
-        const title = extractTag(item, "title")[0] ?? "Japan update";
-        const description = extractTag(item, "description")[0] ?? "";
-        const link = extractTag(item, "link")[0] ?? "";
-        const pubDate =
-          extractTag(item, "pubDate")[0] ?? new Date().toISOString();
-
-        return {
-          source: "Japan MOFA",
-          sourceType: "Government",
-          title,
-          description,
-          timestamp: new Date(pubDate).toISOString(),
-          category: "Geopolitics",
-          region: "East Asia",
-          country: "Japan",
-          locationLabel: "Japan",
-          actors: ["Government of Japan"],
-          keywords: ["japan", "mofa", "foreign policy"],
-          rawUrl: link,
-          confidenceSeed: "High",
-        };
-      });
+      const signals = links.slice(0, 10).map((link) => buildSignal(link));
 
       return {
-        sourceKey: this.key,
+        sourceKey: "japan-mofa",
         fetchedCount: signals.length,
         signals,
       };
@@ -80,7 +101,7 @@ export const japanMofaSource: SignalSource = {
       console.error("Japan feed error:", error);
 
       return {
-        sourceKey: this.key,
+        sourceKey: "japan-mofa",
         fetchedCount: 0,
         signals: [],
       };

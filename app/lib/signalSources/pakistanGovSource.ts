@@ -4,6 +4,8 @@ import type {
   SignalSourceResult,
 } from "./types";
 
+const PAKISTAN_MOFA_URL = "https://mofa.gov.pk/press-releases/";
+
 function cleanText(value: string) {
   return value
     .replace(/<[^>]+>/g, " ")
@@ -11,68 +13,46 @@ function cleanText(value: string) {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function extractArticleBlocks(html: string) {
-  const matches = html.match(
-    /<article[\s\S]*?<\/article>|<div[\s\S]*?class="[^"]*post[^"]*"[\s\S]*?<\/div>/gi
-  );
-
-  return matches ?? [];
-}
-
-function extractHref(block: string) {
-  const match = block.match(/href="([^"]+)"/i);
-  return match ? match[1] : "";
-}
-
-function extractTitle(block: string) {
-  const headingMatch = block.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
-  if (headingMatch) return cleanText(headingMatch[1]);
-
-  const linkMatch = block.match(/<a[^>]*>([\s\S]*?)<\/a>/i);
-  if (linkMatch) return cleanText(linkMatch[1]);
-
-  return "Pakistan government update";
-}
-
-function extractDate(block: string) {
-  const timeMatch = block.match(/<time[^>]*>([\s\S]*?)<\/time>/i);
-  if (timeMatch) return cleanText(timeMatch[1]);
-
-  const dateMatch = block.match(
-    /\b(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{1,2}\s+[A-Za-z]+\s*,?\s*\d{4})\b/i
-  );
-
-  return dateMatch ? cleanText(dateMatch[1]) : new Date().toISOString();
-}
-
-function extractDescription(block: string) {
-  const paragraphMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-  return paragraphMatch ? cleanText(paragraphMatch[1]) : "";
-}
-
 function normalizeLink(link: string) {
-  if (!link) return "https://mofa.gov.pk/press-releases";
+  if (!link) return PAKISTAN_MOFA_URL;
   if (link.startsWith("http")) return link;
   if (link.startsWith("/")) return `https://mofa.gov.pk${link}`;
-  return `https://mofa.gov.pk/${link}`;
+  return new URL(link, PAKISTAN_MOFA_URL).toString();
 }
 
-function buildSignal(
-  title: string,
-  description: string,
-  link: string,
-  timestamp: string
-): ExternalSignal {
+function extractLinks(html: string) {
+  const matches = [...html.matchAll(/href="([^"]*press-releases[^"]*)"/gi)];
+  return Array.from(
+    new Set(
+      matches
+        .map((match) => match[1])
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+}
+
+function titleFromUrl(link: string) {
+  const raw = link.split("/").filter(Boolean).pop() ?? "pakistan-update";
+
+  return raw
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
+
+function buildSignal(link: string): ExternalSignal {
   return {
     source: "Pakistan Government",
     sourceType: "Government",
-    title,
-    description: description || "Pakistan government press release.",
-    timestamp: new Date(timestamp).toISOString(),
+    title: titleFromUrl(link),
+    description: "Pakistan government foreign affairs update.",
+    timestamp: new Date().toISOString(),
     category: "Geopolitics",
     region: "South Asia",
     country: "Pakistan",
@@ -88,7 +68,8 @@ async function fetchPage(url: string) {
   const res = await fetch(url, {
     cache: "no-store",
     headers: {
-      "User-Agent": "GlobalRadar/1.0",
+      "User-Agent": "Mozilla/5.0",
+      Accept: "text/html,application/xhtml+xml",
     },
   });
 
@@ -104,22 +85,25 @@ export const pakistanGovSource: SignalSource = {
   displayName: "Pakistan Government",
 
   async fetchSignals(): Promise<SignalSourceResult> {
-    const html = await fetchPage("https://mofa.gov.pk/press-releases");
-    const blocks = extractArticleBlocks(html);
+    try {
+      const html = await fetchPage(PAKISTAN_MOFA_URL);
+      const links = extractLinks(html);
 
-    const signals: ExternalSignal[] = blocks.slice(0, 10).map((block) => {
-      const title = extractTitle(block);
-      const description = extractDescription(block);
-      const link = extractHref(block);
-      const published = extractDate(block);
+      const signals = links.slice(0, 10).map((link) => buildSignal(link));
 
-      return buildSignal(title, description, link, published);
-    });
+      return {
+        sourceKey: "pakistan-government",
+        fetchedCount: signals.length,
+        signals,
+      };
+    } catch (error) {
+      console.error("Pakistan feed error:", error);
 
-    return {
-      sourceKey: "pakistan-government",
-      fetchedCount: signals.length,
-      signals,
-    };
+      return {
+        sourceKey: "pakistan-government",
+        fetchedCount: 0,
+        signals: [],
+      };
+    }
   },
 };
