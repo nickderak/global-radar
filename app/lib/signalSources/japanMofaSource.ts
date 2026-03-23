@@ -19,34 +19,19 @@ function parseItems(xml: string) {
   return [...xml.matchAll(itemRegex)].map((m) => m[1]);
 }
 
-function buildSignal(
-  title: string,
-  description: string,
-  link: string,
-  timestamp: string
-): ExternalSignal {
-  return {
-    source: "Japan MOFA",
-    sourceType: "Government",
-    title,
-    description,
-    timestamp,
-    category: "Geopolitics",
-    region: "East Asia",
-    country: "Japan",
-    locationLabel: "Japan",
-    actors: ["Government of Japan"],
-    keywords: ["japan", "mofa", "foreign policy", "diplomacy"],
-    rawUrl: link,
-    confidenceSeed: "High",
-  };
-}
-
 async function fetchRss(url: string) {
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      "Accept": "application/rss+xml, application/xml",
+    },
+  });
+
   if (!res.ok) {
     throw new Error(`Japan MOFA RSS failed: ${res.status}`);
   }
+
   return res.text();
 }
 
@@ -55,23 +40,50 @@ export const japanMofaSource: SignalSource = {
   displayName: "Japan MOFA",
 
   async fetchSignals(): Promise<SignalSourceResult> {
-    const xml = await fetchRss("https://www.mofa.go.jp/press/release/rss.xml");
-    const items = parseItems(xml);
+    try {
+      const xml = await fetchRss(
+        "https://www.mofa.go.jp/press/release/rss.xml"
+      );
 
-    const signals: ExternalSignal[] = items.slice(0, 10).map((item) => {
-      const title = extractTag(item, "title")[0] ?? "Japan update";
-      const description = extractTag(item, "description")[0] ?? "";
-      const link = extractTag(item, "link")[0] ?? "";
-      const pubDate =
-        extractTag(item, "pubDate")[0] ?? new Date().toISOString();
+      const items = parseItems(xml);
 
-      return buildSignal(title, description, link, pubDate);
-    });
+      const signals: ExternalSignal[] = items.slice(0, 10).map((item) => {
+        const title = extractTag(item, "title")[0] ?? "Japan update";
+        const description = extractTag(item, "description")[0] ?? "";
+        const link = extractTag(item, "link")[0] ?? "";
+        const pubDate =
+          extractTag(item, "pubDate")[0] ?? new Date().toISOString();
 
-    return {
-      sourceKey: "japan-mofa",
-      fetchedCount: signals.length,
-      signals,
-    };
+        return {
+          source: "Japan MOFA",
+          sourceType: "Government",
+          title,
+          description,
+          timestamp: new Date(pubDate).toISOString(),
+          category: "Geopolitics",
+          region: "East Asia",
+          country: "Japan",
+          locationLabel: "Japan",
+          actors: ["Government of Japan"],
+          keywords: ["japan", "mofa", "foreign policy"],
+          rawUrl: link,
+          confidenceSeed: "High",
+        };
+      });
+
+      return {
+        sourceKey: this.key,
+        fetchedCount: signals.length,
+        signals,
+      };
+    } catch (error) {
+      console.error("Japan feed error:", error);
+
+      return {
+        sourceKey: this.key,
+        fetchedCount: 0,
+        signals: [],
+      };
+    }
   },
 };
