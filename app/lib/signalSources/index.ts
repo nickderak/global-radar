@@ -9,6 +9,7 @@ import { unSecurityCouncilSource } from "./unSecurityCouncilSource";
 import { pakistanGovSource } from "./pakistanGovSource";
 import { chinaGovSource } from "./chinaGovSource";
 import { mexicoGovSource } from "./mexicoGovSource";
+import { ukFcdoSource } from "./ukFcdoSource";
 import type { SignalSource } from "./types";
 
 export const registeredSignalSources: SignalSource[] = [
@@ -23,4 +24,5 @@ export const registeredSignalSources: SignalSource[] = [
   pakistanGovSource,
   chinaGovSource,
   mexicoGovSource,
+  ukFcdoSource,
 ];
