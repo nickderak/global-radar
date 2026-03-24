@@ -4,7 +4,8 @@ import type {
   SignalSourceResult,
 } from "./types";
 
-const UN_SC_RSS_URL = "https://news.un.org/feed/subscribe/en/news/topic/security-council/feed/rss.xml";
+const UN_RSS_URL =
+  "https://news.un.org/feed/subscribe/en/news/topic/peace-and-security/feed/rss.xml";
 
 function cleanText(value: string) {
   return value
@@ -26,8 +27,25 @@ function extractTag(block: string, tag: string) {
 }
 
 function parseItems(xml: string) {
-  const matches = xml.match(/<item[\s\S]*?<\/item>/gi) ?? [];
-  return matches;
+  return xml.match(/<item[\s\S]*?<\/item>/gi) ?? [];
+}
+
+function decodeCommonArtifacts(value: string) {
+  return value
+    .replace(/â€˜/g, "‘")
+    .replace(/â€™/g, "’")
+    .replace(/â€œ/g, "“")
+    .replace(/â€/g, "”")
+    .replace(/â€”/g, "—")
+    .replace(/â€“/g, "–");
+}
+
+function isUsefulUnItem(title: string, description: string) {
+  const text = `${title} ${description}`.toLowerCase();
+
+  if (text.includes("world news in brief")) return false;
+
+  return true;
 }
 
 function buildSignal(
@@ -38,9 +56,11 @@ function buildSignal(
 ): ExternalSignal {
   return {
     source: "UN Security Council",
-    sourceType: "Government",
-    title,
-    description: description || "UN Security Council update.",
+    sourceType: "International Organization",
+    title: decodeCommonArtifacts(title),
+    description: decodeCommonArtifacts(
+      description || "UN peace and security update."
+    ),
     timestamp: new Date(pubDate).toISOString(),
     category: "Geopolitics",
     region: "Global",
@@ -48,7 +68,7 @@ function buildSignal(
     locationLabel: "United Nations",
     actors: ["United Nations"],
     keywords: ["un", "security council", "diplomacy", "conflict"],
-    rawUrl: link || UN_SC_RSS_URL,
+    rawUrl: link || UN_RSS_URL,
     confidenceSeed: "High",
   };
 }
@@ -63,7 +83,7 @@ async function fetchRss(url: string) {
   });
 
   if (!response.ok) {
-    throw new Error(`UN Security Council RSS failed: ${response.status}`);
+    throw new Error(`UN RSS failed: ${response.status}`);
   }
 
   return response.text();
@@ -75,18 +95,30 @@ export const unSecurityCouncilSource: SignalSource = {
 
   async fetchSignals(): Promise<SignalSourceResult> {
     try {
-      const xml = await fetchRss(UN_SC_RSS_URL);
+      const xml = await fetchRss(UN_RSS_URL);
       const items = parseItems(xml);
 
-      const signals: ExternalSignal[] = items.slice(0, 10).map((item) => {
-        const title = extractTag(item, "title") || "UN update";
-        const description = extractTag(item, "description");
-        const link = extractTag(item, "link");
-        const pubDate =
-          extractTag(item, "pubDate") || new Date().toISOString();
+      const signals: ExternalSignal[] = items
+        .slice(0, 20)
+        .map((item) => {
+          const title = extractTag(item, "title") || "UN update";
+          const description = extractTag(item, "description");
+          const link = extractTag(item, "link");
+          const pubDate =
+            extractTag(item, "pubDate") || new Date().toISOString();
 
-        return buildSignal(title, description, link, pubDate);
-      });
+          return { title, description, link, pubDate };
+        })
+        .filter((item) => isUsefulUnItem(item.title, item.description))
+        .slice(0, 10)
+        .map((item) =>
+          buildSignal(
+            item.title,
+            item.description,
+            item.link,
+            item.pubDate
+          )
+        );
 
       return {
         sourceKey: "un-security-council",
