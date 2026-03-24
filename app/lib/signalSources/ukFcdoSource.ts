@@ -35,18 +35,56 @@ function extractLink(block: string) {
   return match ? match[1] : "";
 }
 
-function isUsefulUkItem(title: string, description: string) {
-  const text = `${title} ${description}`.toLowerCase();
+/* =========================
+   FILTERING LOGIC
+========================= */
 
-  if (text.includes("transparency")) return false;
-  if (text.includes("when someone dies")) return false;
-  if (text.includes("policy paper")) return false;
-  if (text.includes("guidance")) return false;
-  if (text.includes("statistics")) return false;
-  if (text.includes("academic technology approval scheme")) return false;
+function isGarbage(title: string) {
+  const t = title.toLowerCase();
 
-  return true;
+  return (
+    !t ||
+    t.length < 10 ||
+    t.includes("transparency") ||
+    t.includes("expenses") ||
+    t.includes("hospitality") ||
+    t.includes("gifts") ||
+    t.includes("meeting") ||
+    t.includes("data") ||
+    t.includes("statistics") ||
+    t.includes("guidance") ||
+    t.includes("how to") ||
+    t.includes("when someone dies") ||
+    t.includes("academic technology approval") ||
+    t.includes("policy paper")
+  );
 }
+
+function isTravelAdvice(title: string) {
+  return title.toLowerCase().includes("travel advice");
+}
+
+function isRealSignal(title: string) {
+  const t = title.toLowerCase();
+
+  return (
+    t.includes("statement") ||
+    t.includes("summoning") ||
+    t.includes("sanction") ||
+    t.includes("agreement") ||
+    t.includes("treaty") ||
+    t.includes("ceasefire") ||
+    t.includes("conflict") ||
+    t.includes("support") ||
+    t.includes("security council") ||
+    t.includes("foreign ministers") ||
+    t.includes("joint statement")
+  );
+}
+
+/* =========================
+   BUILD SIGNAL
+========================= */
 
 function buildSignal(
   title: string,
@@ -72,6 +110,10 @@ function buildSignal(
   };
 }
 
+/* =========================
+   FETCH
+========================= */
+
 async function fetchAtom(url: string) {
   const response = await fetch(url, {
     cache: "no-store",
@@ -88,6 +130,10 @@ async function fetchAtom(url: string) {
   return response.text();
 }
 
+/* =========================
+   SOURCE
+========================= */
+
 export const ukFcdoSource: SignalSource = {
   key: "uk-fcdo",
   displayName: "UK FCDO",
@@ -98,21 +144,23 @@ export const ukFcdoSource: SignalSource = {
       const entries = parseEntries(xml);
 
       const signals: ExternalSignal[] = entries
-        .slice(0, 25)
+        .slice(0, 20)
         .map((entry) => {
-          const title = extractTag(entry, "title") || "UK update";
+          const title = extractTag(entry, "title") || "UK FCDO update";
+
+          // 🔥 APPLY FILTERS HERE
+          if (isGarbage(title)) return null;
+          if (isTravelAdvice(title)) return null;
+          if (!isRealSignal(title)) return null;
+
           const description = extractTag(entry, "summary");
           const link = extractLink(entry);
           const updated =
             extractTag(entry, "updated") || new Date().toISOString();
 
-          return { title, description, link, updated };
+          return buildSignal(title, description, link, updated);
         })
-        .filter((item) => isUsefulUkItem(item.title, item.description))
-        .slice(0, 10)
-        .map((item) =>
-          buildSignal(item.title, item.description, item.link, item.updated)
-        );
+        .filter(Boolean) as ExternalSignal[];
 
       return {
         sourceKey: "uk-fcdo",
