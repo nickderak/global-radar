@@ -4,8 +4,7 @@ import type {
   SignalSourceResult,
 } from "./types";
 
-const UK_FCDO_ATOM_URL =
-  "https://www.gov.uk/government/organisations/foreign-commonwealth-development-office.atom";
+const UN_SC_RSS_URL = "https://news.un.org/feed/subscribe/en/news/topic/security-council/feed/rss.xml";
 
 function cleanText(value: string) {
   return value
@@ -26,84 +25,79 @@ function extractTag(block: string, tag: string) {
   return match ? cleanText(match[1]) : "";
 }
 
-function parseEntries(xml: string) {
-  const matches = xml.match(/<entry[\s\S]*?<\/entry>/gi) ?? [];
+function parseItems(xml: string) {
+  const matches = xml.match(/<item[\s\S]*?<\/item>/gi) ?? [];
   return matches;
-}
-
-function extractLink(block: string) {
-  const match = block.match(/<link[^>]+href="([^"]+)"/i);
-  return match ? match[1] : "";
 }
 
 function buildSignal(
   title: string,
   description: string,
   link: string,
-  timestamp: string
+  pubDate: string
 ): ExternalSignal {
   return {
-    source: "UK FCDO",
+    source: "UN Security Council",
     sourceType: "Government",
     title,
-    description: description || "UK Foreign, Commonwealth & Development Office update.",
-    timestamp: new Date(timestamp).toISOString(),
+    description: description || "UN Security Council update.",
+    timestamp: new Date(pubDate).toISOString(),
     category: "Geopolitics",
-    region: "Europe",
-    country: "United Kingdom",
-    locationLabel: "United Kingdom",
-    actors: ["UK Government"],
-    keywords: ["uk", "fcdo", "foreign office", "diplomacy", "government"],
-    rawUrl: link || UK_FCDO_ATOM_URL,
+    region: "Global",
+    country: "International",
+    locationLabel: "United Nations",
+    actors: ["United Nations"],
+    keywords: ["un", "security council", "diplomacy", "conflict"],
+    rawUrl: link || UN_SC_RSS_URL,
     confidenceSeed: "High",
   };
 }
 
-async function fetchAtom(url: string) {
+async function fetchRss(url: string) {
   const response = await fetch(url, {
     cache: "no-store",
     headers: {
       "User-Agent": "Mozilla/5.0",
-      Accept: "application/atom+xml, application/xml, text/xml",
+      Accept: "application/rss+xml, application/xml, text/xml",
     },
   });
 
   if (!response.ok) {
-    throw new Error(`UK FCDO feed failed: ${response.status}`);
+    throw new Error(`UN Security Council RSS failed: ${response.status}`);
   }
 
   return response.text();
 }
 
-export const ukFcdoSource: SignalSource = {
-  key: "uk-fcdo",
-  displayName: "UK FCDO",
+export const unSecurityCouncilSource: SignalSource = {
+  key: "un-security-council",
+  displayName: "UN Security Council",
 
   async fetchSignals(): Promise<SignalSourceResult> {
     try {
-      const xml = await fetchAtom(UK_FCDO_ATOM_URL);
-      const entries = parseEntries(xml);
+      const xml = await fetchRss(UN_SC_RSS_URL);
+      const items = parseItems(xml);
 
-      const signals: ExternalSignal[] = entries.slice(0, 10).map((entry) => {
-        const title = extractTag(entry, "title") || "UK FCDO update";
-        const description = extractTag(entry, "summary");
-        const link = extractLink(entry);
-        const updated =
-          extractTag(entry, "updated") || new Date().toISOString();
+      const signals: ExternalSignal[] = items.slice(0, 10).map((item) => {
+        const title = extractTag(item, "title") || "UN update";
+        const description = extractTag(item, "description");
+        const link = extractTag(item, "link");
+        const pubDate =
+          extractTag(item, "pubDate") || new Date().toISOString();
 
-        return buildSignal(title, description, link, updated);
+        return buildSignal(title, description, link, pubDate);
       });
 
       return {
-        sourceKey: "uk-fcdo",
+        sourceKey: "un-security-council",
         fetchedCount: signals.length,
         signals,
       };
     } catch (error) {
-      console.error("UK FCDO feed error:", error);
+      console.error("UN Security Council feed error:", error);
 
       return {
-        sourceKey: "uk-fcdo",
+        sourceKey: "un-security-council",
         fetchedCount: 0,
         signals: [],
       };
