@@ -1,3 +1,4 @@
+console.log("🔥 CORRECT INDEX FILE LOADED");
 import { NextResponse } from "next/server";
 import { runExternalSources } from "../../lib/runExternalSources";
 import { logIngestionRun } from "../../lib/logIngestionRun";
