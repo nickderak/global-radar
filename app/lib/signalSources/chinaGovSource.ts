@@ -4,6 +4,9 @@ import type {
   SignalSourceResult,
 } from "./types";
 
+const CHINA_MFA_URL =
+  "https://www.fmprc.gov.cn/eng/xwfw_665399/s2510_665401/";
+
 function cleanText(value: string) {
   return value
     .replace(/<[^>]+>/g, " ")
@@ -11,6 +14,7 @@ function cleanText(value: string) {
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -29,10 +33,10 @@ function extractHref(block: string) {
 }
 
 function extractTitle(block: string) {
-  const headingMatch = block.match(/<a[^>]*>([\s\S]*?)<\/a>/i);
-  if (headingMatch) return cleanText(headingMatch[1]);
+  const linkMatch = block.match(/<a[^>]*>([\s\S]*?)<\/a>/i);
+  if (linkMatch) return cleanText(linkMatch[1]);
 
-  return "China government update";
+  return "";
 }
 
 function extractDate(block: string) {
@@ -45,12 +49,35 @@ function extractDate(block: string) {
 
 function normalizeLink(link: string) {
   if (!link) {
-    return "https://www.fmprc.gov.cn/eng/xwfw_665399/s2510_665401/";
+    return CHINA_MFA_URL;
   }
 
   if (link.startsWith("http")) return link;
   if (link.startsWith("/")) return `https://www.fmprc.gov.cn${link}`;
   return `https://www.fmprc.gov.cn/eng/xwfw_665399/s2510_665401/${link}`;
+}
+
+function isGarbledTitle(title: string) {
+  return /å|ä|æ|ç|é|è|ö|ü|ß/.test(title);
+}
+
+function isUsefulChinaTitle(title: string) {
+  const normalized = title.trim();
+
+  if (!normalized) return false;
+  if (normalized.length < 12) return false;
+  if (isGarbledTitle(normalized)) return false;
+
+  const lower = normalized.toLowerCase();
+
+  if (lower === "foreign ministry") return false;
+  if (lower === "ministry of foreign affairs") return false;
+  if (lower.includes("embassies and consulates")) return false;
+  if (lower.includes("spokesperson")) return false;
+  if (lower.includes("service")) return false;
+  if (lower.includes("archives")) return false;
+
+  return true;
 }
 
 function buildSignal(
@@ -95,24 +122,36 @@ export const chinaGovSource: SignalSource = {
   displayName: "China Government",
 
   async fetchSignals(): Promise<SignalSourceResult> {
-    const html = await fetchPage(
-      "https://www.fmprc.gov.cn/eng/xwfw_665399/s2510_665401/"
-    );
+    try {
+      const html = await fetchPage(CHINA_MFA_URL);
+      const blocks = extractArticleBlocks(html);
 
-    const blocks = extractArticleBlocks(html);
+      const signals: ExternalSignal[] = blocks
+        .slice(0, 30)
+        .map((block) => {
+          const title = extractTitle(block);
+          const link = extractHref(block);
+          const published = extractDate(block);
 
-    const signals: ExternalSignal[] = blocks.slice(0, 10).map((block) => {
-      const title = extractTitle(block);
-      const link = extractHref(block);
-      const published = extractDate(block);
+          return { title, link, published };
+        })
+        .filter((item) => isUsefulChinaTitle(item.title))
+        .slice(0, 10)
+        .map((item) => buildSignal(item.title, item.link, item.published));
 
-      return buildSignal(title, link, published);
-    });
+      return {
+        sourceKey: "china-government",
+        fetchedCount: signals.length,
+        signals,
+      };
+    } catch (error) {
+      console.error("China government feed error:", error);
 
-    return {
-      sourceKey: "china-government",
-      fetchedCount: signals.length,
-      signals,
-    };
+      return {
+        sourceKey: "china-government",
+        fetchedCount: 0,
+        signals: [],
+      };
+    }
   },
 };
