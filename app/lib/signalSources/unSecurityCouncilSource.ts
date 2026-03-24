@@ -4,25 +4,36 @@ import type {
   SignalSourceResult,
 } from "./types";
 
+const UK_FCDO_ATOM_URL =
+  "https://www.gov.uk/government/organisations/foreign-commonwealth-development-office.atom";
+
 function cleanText(value: string) {
   return value
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-function extractTag(content: string, tag: string) {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "g");
-  const matches = [...content.matchAll(regex)];
-  return matches.map((m) => cleanText(m[1]));
+function extractTag(block: string, tag: string) {
+  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i");
+  const match = block.match(regex);
+  return match ? cleanText(match[1]) : "";
 }
 
-function parseItems(xml: string) {
-  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-  return [...xml.matchAll(itemRegex)].map((m) => m[1]);
+function parseEntries(xml: string) {
+  const matches = xml.match(/<entry[\s\S]*?<\/entry>/gi) ?? [];
+  return matches;
+}
+
+function extractLink(block: string) {
+  const match = block.match(/<link[^>]+href="([^"]+)"/i);
+  return match ? match[1] : "";
 }
 
 function buildSignal(
@@ -30,61 +41,72 @@ function buildSignal(
   description: string,
   link: string,
   timestamp: string
-) {
+): ExternalSignal {
   return {
-    source: "UN Security Council",
-    sourceType: "International Organization",
+    source: "UK FCDO",
+    sourceType: "Government",
     title,
-    description,
-    timestamp,
+    description: description || "UK Foreign, Commonwealth & Development Office update.",
+    timestamp: new Date(timestamp).toISOString(),
     category: "Geopolitics",
-    region: "Global",
-    country: "Global",
-    locationLabel: "United Nations",
-    actors: ["UN Security Council"],
-    keywords: ["un", "security council", "geopolitics", "conflict", "diplomacy"],
-    rawUrl: link,
+    region: "Europe",
+    country: "United Kingdom",
+    locationLabel: "United Kingdom",
+    actors: ["UK Government"],
+    keywords: ["uk", "fcdo", "foreign office", "diplomacy", "government"],
+    rawUrl: link || UK_FCDO_ATOM_URL,
     confidenceSeed: "High",
   };
 }
 
-async function fetchPage(url: string) {
-  const res = await fetch(url, {
+async function fetchAtom(url: string) {
+  const response = await fetch(url, {
     cache: "no-store",
     headers: {
-      "User-Agent": "GlobalRadar/1.0",
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/atom+xml, application/xml, text/xml",
     },
   });
 
-  if (!res.ok) {
-    throw new Error(`UN Security Council feed failed: ${res.status}`);
+  if (!response.ok) {
+    throw new Error(`UK FCDO feed failed: ${response.status}`);
   }
 
-  return res.text();
+  return response.text();
 }
 
-export const unSecurityCouncilSource: SignalSource = {
-  key: "un-security-council",
-  displayName: "UN Security Council",
+export const ukFcdoSource: SignalSource = {
+  key: "uk-fcdo",
+  displayName: "UK FCDO",
 
   async fetchSignals(): Promise<SignalSourceResult> {
-    const xml = await fetchPage("https://news.un.org/feed/subscribe/en/news/topic/peace-and-security/feed/rss.xml");
-    const items = parseItems(xml);
+    try {
+      const xml = await fetchAtom(UK_FCDO_ATOM_URL);
+      const entries = parseEntries(xml);
 
-    const signals = items.slice(0, 10).map((item) => {
-      const title = extractTag(item, "title")[0] ?? "UN Security Council update";
-      const description = extractTag(item, "description")[0] ?? "";
-      const link = extractTag(item, "link")[0] ?? "";
-      const pubDate =
-        extractTag(item, "pubDate")[0] ?? new Date().toISOString();
+      const signals: ExternalSignal[] = entries.slice(0, 10).map((entry) => {
+        const title = extractTag(entry, "title") || "UK FCDO update";
+        const description = extractTag(entry, "summary");
+        const link = extractLink(entry);
+        const updated =
+          extractTag(entry, "updated") || new Date().toISOString();
 
-      return buildSignal(title, description, link, pubDate);
-    });
+        return buildSignal(title, description, link, updated);
+      });
 
-    return {
-      sourceKey: "un-security-council",
-      fetchedCount: signals.length,
-      signals,
-    };
+      return {
+        sourceKey: "uk-fcdo",
+        fetchedCount: signals.length,
+        signals,
+      };
+    } catch (error) {
+      console.error("UK FCDO feed error:", error);
+
+      return {
+        sourceKey: "uk-fcdo",
+        fetchedCount: 0,
+        signals: [],
+      };
+    }
   },
 };
