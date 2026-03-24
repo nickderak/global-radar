@@ -1,3 +1,4 @@
+console.log("✅ EU EEAS SOURCE FILE LOADED");
 import type {
   ExternalSignal,
   SignalSource,
@@ -68,8 +69,10 @@ export const euEeasSource: SignalSource = {
   key: "eu-eeas",
   displayName: "EU Commission",
 
-  async fetchSignals(): Promise<SignalSourceResult> {
-    try {
+async fetchSignals(): Promise<SignalSourceResult> {
+  console.log("🚀 EU EEAS FETCH RUNNING");
+
+  try {
       const xml = await fetchRss(EU_NEWS_RSS);
       const items = parseItems(xml);
 
