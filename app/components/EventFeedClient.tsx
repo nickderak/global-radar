@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { detectNewEvents } from "../lib/detectNewEvents";
 import LiveAlertBanner from "./LiveAlertBanner";
 
 type EventFeedItem = {
@@ -93,44 +92,73 @@ function getEventCardClass(importanceLabel: string, isNew: boolean) {
   return `border border-gray-800 bg-gray-950 ${base}`.trim();
 }
 
+function getNewEventIds(
+  currentEvents: EventFeedItem[],
+  previousIds: string[]
+): string[] {
+  return currentEvents
+    .filter((event) => !previousIds.includes(event.id))
+    .map((event) => event.id);
+}
+
+function sortNewestFirst(events: EventFeedItem[]) {
+  return [...events].sort((a, b) => {
+    const timeDiff =
+      new Date(b.eventTime).getTime() - new Date(a.eventTime).getTime();
+
+    if (timeDiff !== 0) return timeDiff;
+
+    return b.importanceScore - a.importanceScore;
+  });
+}
+
 export default function EventFeedClient({
   initialEvents,
 }: {
   initialEvents: EventFeedItem[];
 }) {
-  const [events, setEvents] = useState<EventFeedItem[]>(initialEvents);
+  const [events, setEvents] = useState<EventFeedItem[]>(
+    sortNewestFirst(initialEvents)
+  );
   const [newCount, setNewCount] = useState(0);
   const [newIds, setNewIds] = useState<string[]>([]);
   const previousIds = useRef<string[]>(initialEvents.map((e) => e.id));
 
   async function loadEvents() {
-    const res = await fetch("/api/events", { cache: "no-store" });
+    const res = await fetch("/api/events", {
+      cache: "no-store",
+    });
+
     const data = (await res.json()) as EventFeedItem[];
+    const sortedData = sortNewestFirst(data);
+    const newEventIds = getNewEventIds(sortedData, previousIds.current);
 
-    const result = detectNewEvents(data, previousIds.current);
+    if (newEventIds.length > 0) {
+      setNewCount(newEventIds.length);
+      setNewIds(newEventIds);
 
-    if (result.newEventCount > 0) {
-      setNewCount(result.newEventCount);
-      setNewIds(result.newEventIds);
-
-      setTimeout(() => {
+      window.setTimeout(() => {
         setNewCount(0);
         setNewIds([]);
       }, 8000);
     }
 
-    previousIds.current = data.map((e) => e.id);
-    setEvents(data);
+    previousIds.current = sortedData.map((e) => e.id);
+    setEvents(sortedData);
   }
 
   useEffect(() => {
-    const interval = setInterval(loadEvents, 5000);
-    return () => clearInterval(interval);
+    const interval = window.setInterval(loadEvents, 5000);
+    return () => window.clearInterval(interval);
   }, []);
 
   return (
     <>
       <LiveAlertBanner count={newCount} />
+
+      <div className="mb-4 rounded border border-gray-800 bg-gray-950 px-4 py-3 text-sm text-gray-300">
+        Showing newest events first
+      </div>
 
       <div className="space-y-4">
         {events.map((event) => {
