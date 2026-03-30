@@ -3,6 +3,7 @@ import { nwsAlertsSource } from "./nwsAlertsSource";
 import { gdacsAlertsSource } from "./gdacsAlertsSource";
 import { ukFcdoSource } from "./ukFcdoSource";
 import { unSecurityCouncilSource } from "./unSecurityCouncilSource";
+import { apSource } from "./apSource";
 import type { SignalSource } from "./types";
 
 export const registeredSignalSources: SignalSource[] = [
@@ -11,4 +12,5 @@ export const registeredSignalSources: SignalSource[] = [
   gdacsAlertsSource,
   ukFcdoSource,
   unSecurityCouncilSource,
+  apSource,
 ];
